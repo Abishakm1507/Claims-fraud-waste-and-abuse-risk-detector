@@ -1,4 +1,4 @@
-# Claims Fraud, Waste & Abuse Risk Detector
+cd Claims-fraud-waste-and-abuse-risk-detector# Claims Fraud, Waste & Abuse Risk Detector
 
 An AI-powered **healthcare insurance payment-integrity system** that analyzes claim and provider-level patterns to identify potentially suspicious billing behavior, explain why a claim or provider appears high-risk, and prioritize cases for investigation.
 
