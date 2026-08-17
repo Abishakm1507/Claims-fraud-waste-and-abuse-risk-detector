@@ -1,0 +1,223 @@
+{
+  "model_name": "provider_risk_isolation_forest",
+  "model_type": "Unsupervised anomaly detection (Isolation Forest, primary)",
+  "supporting_models_for_comparison": [
+    "Local Outlier Factor (LOF)"
+  ],
+  "training_date_utc": "2026-08-17 18:11:52 UTC",
+  "algorithm_parameters": {
+    "n_estimators": 300,
+    "contamination": 0.05,
+    "random_state": 42,
+    "n_jobs": -1
+  },
+  "training_data": {
+    "source_dataset": "Updated ETL dataset (data.zip), raw/cms_provider_service_2020.csv ... 2024.csv",
+    "grain_of_source_data": "provider (NPI) x HCPCS code x year x place of service",
+    "years_covered": [
+      2020,
+      2021,
+      2022,
+      2023,
+      2024
+    ],
+    "n_source_rows": 101739,
+    "n_unique_providers_in_source": 2813,
+    "n_providers_scored": 2368,
+    "note_on_population": "Scored population = providers with billing activity in the latest year (2024), since 'latest-year' snapshot features require a 2024 record. Providers active only in earlier years (445 NPIs) are excluded from the current-risk scoring population; see limitations."
+  },
+  "feature_engineering": {
+    "n_features_engineered_before_selection": 42,
+    "n_features_removed_as_redundant": 4,
+    "removed_features": [
+      "latest_medical_payment_share (perfectly collinear with latest_drug_payment_share)",
+      "latest_top_hcpcs_share (r=0.98 with latest_hcpcs_hhi)",
+      "first_year (raw calendar identifier)",
+      "last_year (raw calendar identifier)"
+    ],
+    "n_final_ml_features": 40,
+    "feature_categories": [
+      "utilization",
+      "financial",
+      "service_mix",
+      "temporal/trend",
+      "peer_deviation (vs. same provider_type/specialty)"
+    ]
+  },
+  "preprocessing_pipeline": {
+    "steps": [
+      "SimpleImputer(strategy=median)",
+      "Winsorizer(lower_pct=1.0, upper_pct=99.0) [custom transformer, provider_preprocessing.py]",
+      "RobustScaler()"
+    ],
+    "missingness_indicators": [
+      "peer_dev_latest_hcpcs_hhi_missing",
+      "peer_dev_latest_drug_payment_share_missing"
+    ],
+    "deterministic": true
+  },
+  "risk_scoring_methodology": {
+    "raw_anomaly_score": "negative of sklearn IsolationForest.decision_function (higher = more anomalous)",
+    "anomaly_flag": "1 if IsolationForest.predict == -1 under contamination=0.05, else 0",
+    "risk_score_0_100": "min-max normalization of raw_anomaly_score across the scored population, scaled to 0-100",
+    "risk_categories": {
+      "Low": "0-24",
+      "Medium": "25-49",
+      "High": "50-74",
+      "Critical": "75-100"
+    },
+    "IMPORTANT_disclaimer": "The risk score is NOT a probability of fraud and does not indicate confirmed wrongdoing. It quantifies relative behavioral anomalousness within this provider population, for investigation prioritization only."
+  },
+  "validation_summary": {
+    "anomaly_score_distribution": {
+      "min": -0.20376318626665463,
+      "max": 0.21199473302231253,
+      "mean": -0.133147718222499,
+      "std": 0.060365921531046966,
+      "p50": -0.15197648115595377,
+      "p90": -0.052096733566480556,
+      "p95": 3.3623819874206706e-17,
+      "p99": 0.08333853678432838
+    },
+    "sensitivity_top50_jaccard_vs_production_config": {
+      "contamination=0.03_n_estimators=150": 0.923,
+      "contamination=0.03_n_estimators=300": 1.0,
+      "contamination=0.03_n_estimators=500": 0.923,
+      "contamination=0.05_n_estimators=150": 0.923,
+      "contamination=0.05_n_estimators=300": 1.0,
+      "contamination=0.05_n_estimators=500": 0.923,
+      "contamination=0.1_n_estimators=150": 0.923,
+      "contamination=0.1_n_estimators=300": 1.0,
+      "contamination=0.1_n_estimators=500": 0.923
+    },
+    "stability_spearman_corr_across_seeds": [
+      0.9894,
+      0.9899,
+      0.989,
+      0.9867,
+      0.988
+    ],
+    "stability_mean_spearman_corr": 0.9886,
+    "isolation_forest_vs_lof": {
+      "iso_forest_flagged": 119,
+      "lof_flagged": 119,
+      "overlap_count": 11,
+      "overlap_pct_of_iso_flagged": 9.2,
+      "rank_correlation_spearman": 0.4761
+    },
+    "top_15_risk_providers_preview": [
+      {
+        "npi": "1003053851",
+        "provider_type": "Internal Medicine",
+        "state": "CA",
+        "risk_score_0_100": 100.0,
+        "risk_category": "Critical"
+      },
+      {
+        "npi": "1003133984",
+        "provider_type": "Nurse Practitioner",
+        "state": "CA",
+        "risk_score_0_100": 92.89,
+        "risk_category": "Critical"
+      },
+      {
+        "npi": "1003133901",
+        "provider_type": "Dermatology",
+        "state": "KY",
+        "risk_score_0_100": 86.63,
+        "risk_category": "Critical"
+      },
+      {
+        "npi": "1003002205",
+        "provider_type": "Certified Registered Nurse Anesthetist (CRNA)",
+        "state": "TX",
+        "risk_score_0_100": 85.75,
+        "risk_category": "Critical"
+      },
+      {
+        "npi": "1003086448",
+        "provider_type": "Rheumatology",
+        "state": "MD",
+        "risk_score_0_100": 84.76,
+        "risk_category": "Critical"
+      },
+      {
+        "npi": "1003128703",
+        "provider_type": "Hematology-Oncology",
+        "state": "FL",
+        "risk_score_0_100": 82.79,
+        "risk_category": "Critical"
+      },
+      {
+        "npi": "1003109075",
+        "provider_type": "Rheumatology",
+        "state": "MI",
+        "risk_score_0_100": 81.15,
+        "risk_category": "Critical"
+      },
+      {
+        "npi": "1003031212",
+        "provider_type": "Hematology-Oncology",
+        "state": "FL",
+        "risk_score_0_100": 79.84,
+        "risk_category": "Critical"
+      },
+      {
+        "npi": "1003036997",
+        "provider_type": "Orthopedic Surgery",
+        "state": "MO",
+        "risk_score_0_100": 79.25,
+        "risk_category": "Critical"
+      },
+      {
+        "npi": "1003079997",
+        "provider_type": "Hematology-Oncology",
+        "state": "IA",
+        "risk_score_0_100": 78.02,
+        "risk_category": "Critical"
+      },
+      {
+        "npi": "1003028556",
+        "provider_type": "Neurology",
+        "state": "CA",
+        "risk_score_0_100": 77.67,
+        "risk_category": "Critical"
+      },
+      {
+        "npi": "1003133612",
+        "provider_type": "Ophthalmology",
+        "state": "NY",
+        "risk_score_0_100": 77.22,
+        "risk_category": "Critical"
+      },
+      {
+        "npi": "1003104381",
+        "provider_type": "Ambulance Service Provider",
+        "state": "FL",
+        "risk_score_0_100": 75.71,
+        "risk_category": "Critical"
+      },
+      {
+        "npi": "1003058157",
+        "provider_type": "Neurology",
+        "state": "NM",
+        "risk_score_0_100": 75.56,
+        "risk_category": "Critical"
+      },
+      {
+        "npi": "1003016916",
+        "provider_type": "Ophthalmology",
+        "state": "MI",
+        "risk_score_0_100": 75.36,
+        "risk_category": "Critical"
+      }
+    ],
+    "leie_reference_check": {
+      "total_leie_excluded_npis_in_reference_file": 8660,
+      "providers_in_scored_population_matched_to_leie": 1,
+      "pct_of_scored_population_matched": 0.042,
+      "leie_matches_within_high_or_critical_risk_category": 0,
+      "note": "LEIE match count is used ONLY as an external qualitative reference check, NOT as a supervised training/evaluation label, because the number of matches is too small and too structurally different (program exclusion != billing anomaly) to support precision/recall style evaluation."
+    }
+  }
+}
