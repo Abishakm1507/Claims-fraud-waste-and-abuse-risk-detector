@@ -1,0 +1,204 @@
+{
+  "generated": "2026-08-17 14:50:19",
+  "year_scope": [
+    2020,
+    2024
+  ],
+  "tables": [
+    {
+      "table": "dim_provider",
+      "rows": 2813,
+      "columns": 13,
+      "duplicate_rows": 0,
+      "memory_mb": 0.4,
+      "key_columns": [
+        "npi"
+      ],
+      "duplicate_keys": 0,
+      "key_is_unique": true,
+      "key_null_rows": 0,
+      "columns_fully_null": [],
+      "highest_null_pct": {
+        "provider_first": 3.8
+      }
+    },
+    {
+      "table": "fact_provider_year",
+      "rows": 10592,
+      "columns": 15,
+      "duplicate_rows": 0,
+      "memory_mb": 1.4,
+      "key_columns": [
+        "npi",
+        "year"
+      ],
+      "duplicate_keys": 0,
+      "key_is_unique": true,
+      "key_null_rows": 0,
+      "columns_fully_null": [],
+      "highest_null_pct": {}
+    },
+    {
+      "table": "fact_provider_service",
+      "rows": 101739,
+      "columns": 22,
+      "duplicate_rows": 0,
+      "memory_mb": 29.9,
+      "key_columns": [
+        "npi",
+        "hcpcs_code",
+        "year",
+        "place_of_service"
+      ],
+      "duplicate_keys": 0,
+      "key_is_unique": true,
+      "key_null_rows": 0,
+      "columns_fully_null": [],
+      "highest_null_pct": {
+        "provider_first": 3.16
+      }
+    },
+    {
+      "table": "fact_geo_benchmark",
+      "rows": 709490,
+      "columns": 13,
+      "duplicate_rows": 0,
+      "memory_mb": 136.4,
+      "key_columns": [
+        "geo_level",
+        "geo_description",
+        "hcpcs_code",
+        "year",
+        "place_of_service"
+      ],
+      "duplicate_keys": 0,
+      "key_is_unique": true,
+      "key_null_rows": 0,
+      "columns_fully_null": [],
+      "highest_null_pct": {
+        "geo_state": 2.7
+      }
+    },
+    {
+      "table": "dim_hcpcs",
+      "rows": 2185,
+      "columns": 2,
+      "duplicate_rows": 0,
+      "memory_mb": 0.2,
+      "key_columns": [
+        "hcpcs_code"
+      ],
+      "duplicate_keys": 0,
+      "key_is_unique": true,
+      "key_null_rows": 0,
+      "columns_fully_null": [],
+      "highest_null_pct": {}
+    },
+    {
+      "table": "dim_exclusion",
+      "rows": 83842,
+      "columns": 16,
+      "duplicate_rows": 40,
+      "memory_mb": 15.6,
+      "columns_fully_null": [
+        "reinstatement_date",
+        "waiver_date"
+      ],
+      "highest_null_pct": {
+        "business_name": 95.89,
+        "npi": 89.46,
+        "middle_name": 29.3,
+        "specialty": 4.86,
+        "last_name": 4.11,
+        "first_name": 4.11
+      }
+    },
+    {
+      "table": "fact_claim",
+      "rows": 639823,
+      "columns": 19,
+      "duplicate_rows": 209638,
+      "memory_mb": 184.4,
+      "key_columns": [
+        "claim_id"
+      ],
+      "duplicate_keys": 209638,
+      "key_is_unique": false,
+      "key_null_rows": 0,
+      "columns_fully_null": [],
+      "highest_null_pct": {
+        "performing_npi": 98.96,
+        "billing_npi": 98.96,
+        "submitted_charge_amount": 98.96,
+        "allowed_amount": 98.96,
+        "length_of_stay": 90.92,
+        "rendering_npi": 10.12,
+        "provider_ccn": 1.52,
+        "attending_npi": 1.04
+      }
+    },
+    {
+      "table": "link_provider_exclusion",
+      "rows": 16,
+      "columns": 11,
+      "duplicate_rows": 0,
+      "memory_mb": 0.0,
+      "columns_fully_null": [],
+      "highest_null_pct": {
+        "city_agrees": 12.5
+      }
+    },
+    {
+      "table": "xwalk_identifier",
+      "rows": 6,
+      "columns": 11,
+      "duplicate_rows": 0,
+      "memory_mb": 0.0,
+      "columns_fully_null": [],
+      "highest_null_pct": {}
+    }
+  ],
+  "referential_integrity": [
+    {
+      "relationship": "fact_provider_year.npi -> dim_provider.npi",
+      "child_rows_with_key": 10592,
+      "orphan_rows": 0,
+      "orphan_pct": 0.0,
+      "status": "ok"
+    },
+    {
+      "relationship": "fact_provider_service.hcpcs_code -> dim_hcpcs.hcpcs_code",
+      "child_rows_with_key": 101739,
+      "orphan_rows": 0,
+      "orphan_pct": 0.0,
+      "status": "ok"
+    }
+  ],
+  "year_coverage": {
+    "fact_provider_service": {
+      "2020": 19823,
+      "2021": 19990,
+      "2022": 20001,
+      "2023": 19804,
+      "2024": 22121
+    },
+    "fact_geo_benchmark": {
+      "2020": 139801,
+      "2021": 142164,
+      "2022": 143292,
+      "2023": 142156,
+      "2024": 142077
+    },
+    "fact_claim": {
+      "2015": 46252,
+      "2016": 59643,
+      "2017": 63596,
+      "2018": 68553,
+      "2019": 77015,
+      "2020": 87723,
+      "2021": 107018,
+      "2022": 104741,
+      "2023": 18617
+    }
+  }
+}

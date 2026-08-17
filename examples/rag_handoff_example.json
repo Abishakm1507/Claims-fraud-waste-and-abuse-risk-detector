@@ -1,0 +1,269 @@
+{
+  "contract_version": "1.0",
+  "request_id": "rag-CASE-10231",
+  "case": {
+    "case_id": "CASE-10231",
+    "claim_id": "CLAIM-10231",
+    "provider_id": "NPI-1234567890",
+    "provider_id_type": "NPI",
+    "claim_type": "CARRIER",
+    "investigation_context": {
+      "case_id": "CASE-10231",
+      "claim_id": "CLAIM-10231",
+      "provider_id": "NPI-1234567890",
+      "provider_id_type": "NPI",
+      "claim_anomaly": 91.0,
+      "provider_anomaly": 88.0,
+      "data_availability": {
+        "financial": "AVAILABLE",
+        "peer": "AVAILABLE",
+        "temporal": "NOT_AVAILABLE"
+      }
+    },
+    "agent_results": [
+      {
+        "agent": "peer",
+        "status": "SUCCESS",
+        "score": 92,
+        "risk": "HIGH",
+        "findings": [
+          {
+            "finding_id": "F-001",
+            "agent": "peer",
+            "title": "High service utilization",
+            "description": "Provider utilization exceeds peer baseline.",
+            "severity": "HIGH",
+            "category": "utilization",
+            "evidence_ids": ["EV-001"],
+            "confidence": 0.94
+          }
+        ],
+        "evidence": [
+          {
+            "evidence_id": "EV-001",
+            "agent": "peer",
+            "category": "utilization",
+            "metric": "services",
+            "provider_value": 20000,
+            "peer_mean": 6200,
+            "peer_median": 5000,
+            "peer_std": 2100,
+            "deviation_ratio": 4.0,
+            "percentile": 98.7,
+            "peer_group": "Cardiology-TX",
+            "peer_sample_size": 184,
+            "source": "provider_risk_scores.csv",
+            "source_fields": ["Tot_Srvcs", "Provider_Type", "Prvdr_State"],
+            "methodology": "provider_benchmark",
+            "confidence": 0.94
+          }
+        ],
+        "rule_hits": [],
+        "limitations": ["Peer median unavailable in current provider ML export."],
+        "provenance": {
+          "source": "provider_risk_scores.csv",
+          "pipeline": "provider_pipeline",
+          "pipeline_version": "2026.08"
+        },
+        "execution_id": "exec-peer-1",
+        "execution_time_ms": 142,
+        "contract_version": "1.0"
+      }
+    ],
+    "findings": [
+      {
+        "finding_id": "F-001",
+        "agent": "peer",
+        "title": "High service utilization",
+        "description": "Provider utilization exceeds peer baseline.",
+        "severity": "HIGH",
+        "category": "utilization",
+        "evidence_ids": ["EV-001"],
+        "confidence": 0.94
+      }
+    ],
+    "evidence": [
+      {
+        "evidence_id": "EV-001",
+        "agent": "peer",
+        "category": "utilization",
+        "metric": "services",
+        "provider_value": 20000,
+        "peer_mean": 6200,
+        "peer_median": 5000,
+        "peer_std": 2100,
+        "deviation_ratio": 4.0,
+        "percentile": 98.7,
+        "peer_group": "Cardiology-TX",
+        "peer_sample_size": 184,
+        "source": "provider_risk_scores.csv",
+        "source_fields": ["Tot_Srvcs", "Provider_Type", "Prvdr_State"],
+        "methodology": "provider_benchmark",
+        "confidence": 0.94
+      }
+    ],
+    "risk_synthesis": {
+      "claim_anomaly": 91.0,
+      "provider_anomaly": 88.0,
+      "billing_score": 70.0,
+      "peer_score": 92.0,
+      "rule_score": 74.0,
+      "weights": {
+        "claim_anomaly": 30,
+        "provider_anomaly": 30,
+        "peer_score": 20,
+        "billing_score": 10,
+        "rule_score": 10
+      },
+      "overall_risk": 84.0,
+      "risk_category": "HIGH",
+      "priority": "P1",
+      "methodology": "deterministic_weighted_component_synthesis",
+      "contributing_agents": ["billing", "peer", "clinical_rule"],
+      "contract_version": "1.0",
+      "synthesis_version": "1.0.0",
+      "raw_score": 84.2,
+      "contributions": [
+        {
+          "component_name": "claim_anomaly",
+          "input_score": 91.0,
+          "weight": 0.3,
+          "contribution": 27.3
+        },
+        {
+          "component_name": "provider_anomaly",
+          "input_score": 88.0,
+          "weight": 0.3,
+          "contribution": 26.4
+        },
+        {
+          "component_name": "peer_score",
+          "input_score": 92.0,
+          "weight": 0.2,
+          "contribution": 18.4
+        },
+        {
+          "component_name": "billing_score",
+          "input_score": 70.0,
+          "weight": 0.1,
+          "contribution": 7.0
+        },
+        {
+          "component_name": "rule_score",
+          "input_score": 74.0,
+          "weight": 0.1,
+          "contribution": 7.4
+        }
+      ],
+      "errors": [],
+      "warnings": [],
+      "is_complete": true,
+      "is_usable": true
+    },
+    "genai_explanation": {
+      "explanation_id": "GEX-1",
+      "model_provider": "Groq",
+      "model_name": "llama-3.3-70b-versatile",
+      "summary": "The claim and provider show elevated risk and substantial peer deviation.",
+      "key_findings": [
+        {
+          "agent": "peer",
+          "finding": "High service utilization",
+          "evidence": "Provider volume is 4.0x the peer median."
+        }
+      ],
+      "evidence_references": ["EV-001"],
+      "investigation_narrative": "Deterministic evidence indicates elevated utilization and provider deviation.",
+      "limitations": ["Temporal evidence unavailable."],
+      "generated_at": "2026-08-16T00:00:00Z",
+      "prompt_version": "1.0",
+      "explanation_version": "1.0",
+      "source_case_id": "CASE-10231",
+      "contract_version": "1.0"
+    },
+    "provenance": {
+      "source": "multi_agent_investigation_case",
+      "case_id": "CASE-10231",
+      "contract_version": "1.0"
+    },
+    "created_at": "2026-08-16T00:00:00Z",
+    "updated_at": "2026-08-16T00:00:00Z"
+  },
+  "genai_context": {
+    "case_id": "CASE-10231",
+    "claim_id": "CLAIM-10231",
+    "provider_id": "NPI-1234567890",
+    "claim_type": "CARRIER",
+    "claim_anomaly": 91.0,
+    "provider_anomaly": 88.0,
+    "overall_risk": 84.0,
+    "risk_category": "HIGH",
+    "priority": "P1",
+    "key_findings": [
+      {
+        "agent": "peer",
+        "finding": "High service utilization",
+        "evidence": "Provider volume is 4.0x the peer median."
+      }
+    ],
+    "evidence": [
+      {
+        "evidence_id": "EV-001",
+        "agent": "peer",
+        "category": "utilization",
+        "metric": "services",
+        "provider_value": 20000,
+        "peer_mean": 6200,
+        "peer_median": 5000,
+        "peer_std": 2100,
+        "deviation_ratio": 4.0,
+        "percentile": 98.7,
+        "peer_group": "Cardiology-TX",
+        "peer_sample_size": 184
+      }
+    ],
+    "rule_hits": [],
+    "peer_comparisons": [
+      {
+        "metric": "services",
+        "provider_value": 20000,
+        "peer_median": 5000,
+        "deviation_ratio": 4.0,
+        "percentile": 98.7
+      }
+    ],
+    "billing_findings": [],
+    "limitations": ["Temporal evidence unavailable."],
+    "provenance": {
+      "source": "provider_risk_scores.csv",
+      "pipeline": "provider_pipeline",
+      "pipeline_version": "2026.08"
+    },
+    "agents_executed": ["peer"],
+    "agents_skipped": [],
+    "data_availability": {
+      "financial": "AVAILABLE",
+      "peer": "AVAILABLE",
+      "temporal": "NOT_AVAILABLE"
+    }
+  },
+  "metadata": {
+    "case_id": "CASE-10231",
+    "request_id": "rag-CASE-10231",
+    "generated_at": "2026-08-16T00:00:00Z",
+    "source": "deterministic_multi_agent",
+    "data_availability": {
+      "financial": "AVAILABLE",
+      "peer": "AVAILABLE",
+      "temporal": "NOT_AVAILABLE"
+    },
+    "provenance": {
+      "source": "multi_agent_investigation_case",
+      "case_id": "CASE-10231",
+      "contract_version": "1.0"
+    },
+    "limitations": [
+      "Temporal evidence unavailable."
+    ]
+  }
+}
