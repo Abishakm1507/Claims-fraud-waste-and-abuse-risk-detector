@@ -223,3 +223,19 @@ __marimo__/
 models/provider/artifacts/
 *.pkl
 "@ | Add-Content .gitignore
+
+# Local environment
+.env
+.venv/
+
+# Frontend dependencies
+frontend/node_modules/
+frontend/.vite/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Generated vector store
+vector_store/*.faiss
+vector_store/*.json
