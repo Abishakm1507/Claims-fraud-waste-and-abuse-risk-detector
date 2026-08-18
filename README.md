@@ -1,518 +1,276 @@
-# Claims Fraud, Waste & Abuse Risk Detector
+# Healthcare Claims Fraud, Waste & Abuse — AI Investigation Assistant (UC01)
 
-An AI-powered **healthcare insurance payment-integrity system** that analyzes claim and provider-level patterns to identify potentially suspicious billing behavior, explain why a claim or provider appears high-risk, and prioritize cases for investigation.
+An investigator-facing assistant module for a larger Claims Fraud, Waste & Abuse
+(FWA) Risk Detection platform.
 
-> **Cognizant Hackathon — Claims / Payment Integrity Use Case**
-
----
-
-## 1. Use Case: Claims Fraud, Waste and Abuse Risk Detector
-
-**Type:** Claims / Payment Integrity
-
-### Use Case Description
-
-US payers process billions of healthcare claims every year. Even a small rate of inappropriate billing can create significant financial leakage.
-
-A real payment-integrity team cannot rely on a bare fraud label. Investigators need:
-
-- Explainable reasons for a risk flag
-- Provider peer comparisons
-- Evidence supporting the risk assessment
-- A defensible investigation queue
-- Appropriate prioritization of suspicious cases
-
-Incorrectly flagging a legitimate provider can also have significant consequences.
-
-The goal of this project is therefore to build a system that goes beyond simply predicting whether something is "fraud."
+This repository contains the **AI Investigation Assistant / RAG Bot module only**.
+It is not a standalone general-purpose chatbot.
 
 ---
 
-## 2. Problem Statement
+## What this module is for
 
-A **claim** is the bill submitted by a healthcare provider to an insurer for payment.
+**1. Domain knowledge questions** — "What is upcoding?", "Why can unusually high
+reimbursement be suspicious?", "What is peer comparison?"
+Answered from the curated knowledge base via semantic retrieval.
 
-The system should analyze **claim-level and provider-level patterns** to:
-
-1. Identify potentially suspicious billing behavior.
-2. Detect patterns associated with potential Fraud, Waste, and Abuse (FWA).
-3. Explain in plain language why a claim or provider appears high-risk.
-4. Compare providers against relevant peers.
-5. Prioritize suspicious cases into an investigation queue.
-6. Support human investigators rather than automatically making a final fraud determination.
+**2. Investigation / explanation questions** — "Why was provider PRV51001
+flagged?", "What factors contributed to the risk?", "What should I examine next?"
+Answered by retrieving **existing** risk-engine outputs, joining them with
+**actual** dataset evidence, and explaining them using domain knowledge.
 
 ---
 
-## 3. Objective
+## Critical role separation
 
-Build a system that analyzes **claim- and provider-level patterns** to:
+> **The assistant is an explanation layer, not a detection engine.**
 
-> **Flag potentially suspicious billing behavior, explain in plain language why a claim or provider looks high-risk, and prioritize the flagged cases into an investigation queue.**
+| The assistant DOES | The assistant DOES NOT |
+| --- | --- |
+| Retrieve an existing risk score | Calculate a risk score |
+| Retrieve existing risk factors | Invent risk factors |
+| Query real datasets for exact numbers | Estimate numbers from text similarity |
+| Explain what a flag means | Decide that a provider is fraudulent |
+| Cite the evidence it used | Fabricate evidence, statistics, or cases |
 
-The system is intended to support **payment-integrity investigators** by helping them focus their attention on higher-priority cases.
-
----
-
-## 4. Important Distinction: Fraud, Waste & Abuse
-
-The project treats Fraud, Waste, and Abuse as related but distinct risk categories.
-
-| Category | Definition | Example |
-|---|---|---|
-| **Fraud** | Intentional deception or misrepresentation for financial gain. | A provider intentionally submits a claim for a service that was not actually performed. |
-| **Waste** | Unnecessary or inefficient use of healthcare resources that results in avoidable costs. | Repeated or excessive utilization that may not be medically necessary. |
-| **Abuse** | Practices inconsistent with accepted healthcare or payment practices that may result in unnecessary costs. | Billing practices that exploit reimbursement rules without necessarily establishing intentional fraud. |
-
-> **Important:** A model-generated risk flag is **not proof** of fraud, waste, or abuse. The system is designed to identify potential risk and provide evidence for human investigation.
+> **ANOMALY != PROVEN FRAUD.**
+> Permitted framing: *flagged, high risk, potentially suspicious, warrants
+> further investigation, the model identified, the data shows, this pattern may
+> indicate.* Prohibited framing: *this is fraud, this provider committed fraud* —
+> unless explicit verified information states fraud was confirmed.
 
 ---
 
-## 5. Data Sources
+## Three information sources
 
-| # | Dataset | Source | Purpose |
-|---|---|---|---|
-| 5.1 | CMS Synthetic Medicare Enrollment, FFS Claims & Prescription Drug Event | [CMS](https://data.cms.gov/collection/synthetic-medicare-enrollment-fee-for-service-claims-and-prescription-drug-event) | Claim-level, beneficiary, service utilization, provider activity, prescription, and temporal patterns; potential anomalies |
-| 5.2 | HHS OIG LEIE Exclusions | [HHS OIG](https://oig.hhs.gov/exclusions/leie-database-supplement-downloads/) | List of Excluded Individuals/Entities; supports provider exclusion risk evidence |
-| 5.3 | CMS Medicare Physician & Other Practitioners | [CMS](https://data.cms.gov/provider-summary-by-type-of-service/medicare-physician-other-practitioners) | Provider profiling, service patterns, utilization, peer benchmarking, outlier detection |
-| 5.4 | Kaggle Healthcare Provider Fraud Detection | [Kaggle](https://www.kaggle.com/datasets/rohitrox/healthcare-provider-fraud-detection-analysis) | Labelled fraud data for supplementary supervised experimentation *(labels, provenance, licensing, and suitability to be verified before use)* |
+| Source | Contents | Retrieval method |
+| --- | --- | --- |
+| **KNOWLEDGE** | Fraud concepts, indicators, claims terminology, payment integrity, investigation methodology, CMS concepts | Vector / semantic retrieval (FAISS) |
+| **DATA** | 8 datasets, ~950k rows: Medicare provider analytics, CMS claims, OIG exclusions | Exact SQL over DuckDB |
+| **MODEL** | Risk scores for 36,108 providers from the platform's Isolation Forest model — score, tier, component breakdown, peer-compared metrics | Direct lookup of existing engine output |
 
-**5.2 — LEIE matching flow** (exact methodology to be finalized during data analysis):
+**Retrieval:** hybrid — dense (MiniLM + FAISS) fused with sparse (BM25) via
+Reciprocal Rank Fusion. Used *only* for conceptual knowledge.
+Counts, totals, averages, rankings, thresholds and comparisons must never be
+answered by vector similarity.
 
-```text
-Provider Information
-       │
-       ▼
-LEIE Matching / Validation
-       │
-       ▼
-Potential Exclusion Indicator
-       │
-       ▼
-Provider Risk Evidence
+---
+
+## Target architecture
+
+```
+INVESTIGATOR -> CHAT UI -> QUESTION ROUTER
+                              |
+        +---------------------+---------------------+
+        |                     |                     |
+   KNOWLEDGE               DATA                   MODEL
+   (FAISS RAG)      (structured query)     (existing risk engine)
+        |                     |                     |
+   fraud concepts        claims / providers    risk score / level
+   indicators            actual values         risk factors
+   investigation         comparisons           anomalies
+        |                     |                     |
+        +---------------------+---------------------+
+                              |
+                             LLM  (explanation layer only)
+                              |
+                     GROUNDED ANSWER + SOURCES
+```
+
+The LLM is never the source of truth for numeric or model-specific values.
+
+---
+
+## Question routing categories
+
+| Category | Example | Resolved by |
+| --- | --- | --- |
+| `KNOWLEDGE` | "What is unbundling?" | Knowledge base |
+| `DATA` | "How many claims did PRV51001 submit?" | Structured data layer |
+| `MODEL` | "What is PRV51001's risk score?" | Risk engine outputs |
+| `INVESTIGATION` | "Why was PRV51001 flagged?" | All three, combined |
+
+---
+
+## Build phases
+
+| Phase | Scope | Status |
+| --- | --- | --- |
+| 1 | Project setup + knowledge base | **Complete** |
+| 2 | Ingestion, chunking, embeddings | **Complete** |
+| 3 | FAISS vector store + retrieval | **Complete** |
+| 4 | LLM integration + grounded answers | **Complete** |
+| 5 | FastAPI backend | **Complete** |
+| 6 | React / Vite frontend | Not started |
+| 7 | Question routing | **Complete** |
+| 8 | Real dataset integration | **Complete** |
+| 9 | Risk engine integration | **Complete** |
+| 10 | Combined investigation workflow | **Complete** |
+| 11 | Testing + final integration | In progress |
+
+Phases 8 and 9 are blocked until the datasets and risk engine exist. Their
+service interfaces are built and report "not connected" rather than returning
+placeholder values. See `WALKTHROUGH.md` for a file-by-file explanation.
+
+---
+
+## Knowledge base — 20 documents across 7 categories
+
+```
+backend/knowledge/
+├── fraud_concepts/     (5)  What the schemes are
+├── payment_integrity/  (2)  Where detection sits in the payment lifecycle
+├── fraud_indicators/   (4)  What the signals look like in data
+├── healthcare_claims/  (3)  Core claims vocabulary
+├── investigation/      (3)  How to work a case
+├── provider_behavior/  (1)  How to reason about a provider's pattern
+└── cms_concepts/       (2)  Medicare / CMS background
+```
+
+See `backend/knowledge/INDEX.md` for the full document map.
+
+All 20 documents are written. `python scripts/verify_structure.py` confirms the
+folder layout, the document set, and that every document has valid front matter.
+
+### Document format
+
+Every document carries YAML front matter:
+
+```yaml
+---
+title: Coding Misrepresentation — Upcoding, Downcoding, Unbundling
+doc_id: fraud_concepts.coding_misrepresentation
+category: fraud_concepts
+tags: [upcoding, downcoding, unbundling, coding_integrity]
+source_type: curated_knowledge
+version: 2.0
+---
+```
+
+These fields map directly onto the retrieval metadata required in later phases:
+`source` (file path), `category`, `document` (`doc_id`), plus `chunk_id` and
+`similarity_score` generated at index time.
+
+**Every fraud indicator section follows a fixed five-part structure:**
+
+1. What it means
+2. Why it may be suspicious
+3. How it appears in claims data
+4. Possible legitimate explanations
+5. What an investigator should examine
+
+Part 4 is mandatory — it is the structural guarantee that the assistant surfaces
+benign explanations alongside suspicious ones.
+
+### Content policy
+
+The knowledge base contains **general domain education only**: no real provider
+statistics, no real claims, no real risk scores, no named fraud cases, and no
+synthetic placeholder data that could be mistaken for real evidence.
+Case-specific facts enter the system exclusively at runtime, from the DATA and
+MODEL sources.
+
+Illustrative code references appear only as generic teaching examples of public
+code-set structure, never as claims of observed activity.
+
+---
+
+## Setup
+
+```bash
+python -m venv .venv
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+cp .env.example .env
+```
+
+Data is found automatically when this module sits in the project repo. Verify:
+
+```bash
+python -c "from backend.data import warehouse as wh; print(wh.source())"
+```
+
+Build the knowledge index (first run downloads the ~80 MB embedding model):
+
+```bash
+python scripts/build_index.py
+```
+
+Test retrieval:
+
+```bash
+python scripts/search.py "what is upcoding"
+python scripts/search.py "why can duplicate billing be suspicious"
+python scripts/search.py            # interactive mode
+```
+
+Add your OpenAI key to `.env`:
+
+```
+LLM_API_KEY=sk-your-key-here
+```
+
+Ask a question through the full pipeline:
+
+```bash
+python scripts/ask.py "what is upcoding"
+python scripts/ask.py "why was PRV51001 flagged"
+```
+
+Run the API:
+
+```bash
+uvicorn backend.main:app --reload --port 8732
+```
+
+Then open http://localhost:8732/docs to try `POST /api/chat` in the browser.
+
+Verify the project:
+
+```bash
+python scripts/verify_structure.py     # expect 20/20 documents
 ```
 
 ---
 
-## 6. Overview
+## Future dataset integration (Phase 8 — do not pre-build)
 
-Healthcare fraud, waste, and abuse (FWA) investigation can involve large volumes of claims and provider records. Reviewing every case manually is inefficient and makes it difficult to identify the highest-priority cases quickly.
+When real datasets arrive: inspect every file → catalogue columns and dtypes →
+quantify missing values and duplicates → identify primary/foreign-key-like
+relationships → map how datasets join → determine which questions each dataset
+can answer → build the structured layer → implement exact filtering, counting,
+aggregation, ranking, comparison → wire into the router → test numeric questions
+against ground truth.
 
-This project addresses that problem with a two-level detection and investigation pipeline:
+**No schema is assumed in advance, and no engine is chosen in advance.**
+`backend/data/` stays empty until the datasets exist.
 
-```text
-                 DATA SOURCES
-                      │
-          ┌───────────┴───────────┐
-          ▼                       ▼
-       CLAIMS                  PROVIDERS
-          │                       │
-          ▼                       ▼
-   Claim Features          Provider Features
-          │                       │
-          ▼                       ▼
-  Claim Isolation          Provider Isolation
-      Forest                    Forest
-          │                       │
-          ▼                       ▼
-  Claim Anomaly             Provider Anomaly
-      Score                      Score
-          └───────────┬───────────┘
-                       ▼
-                 ORCHESTRATOR
-                       │
-          ┌────────────┼────────────┐
-          ▼             ▼            ▼
-       Billing        Peer       Clinical/
-        Agent         Agent      Rule Agent
-          └────────────┼────────────┘
-                       ▼
-                   SYNTHESIS
-                       │
-                       ▼
-             RAG-based Explainability
-                       │
-                       ▼
-              INVESTIGATION UI
-```
+## Future risk engine integration (Phase 9 — do not pre-build)
+
+`backend/model/` stays empty until the engine exists. The assistant will read
+provider/claim identifiers, risk score, risk level, risk factors, detected
+anomalies, model prediction, feature contributions and detection reason. It will
+never compute any of them. When a value is unavailable, the assistant says so
+rather than estimating.
 
 ---
 
-## 7. Key Objectives
+## Planned API contract (Phase 5 — reference only)
 
-- Detect unusual **claim-level behavior**
-- Detect unusual **provider-level behavior**
-- Compare providers against relevant peers and geographic/service benchmarks
-- Investigate suspicious patterns using specialized agents
-- Combine multiple evidence signals into a transparent risk score
-- Retrieve supporting evidence using RAG
-- Generate investigator-friendly explanations using generative AI
-- Prioritize cases through an investigation queue
-- Keep humans in the decision-making loop
+`POST /api/chat` will eventually return:
+
+```
+answer, question_type, sources, data_evidence,
+model_information, risk_score, risk_factors
+```
+
+Fields backed by sources that are not yet connected return `null` — never a
+placeholder value.
 
 ---
 
-## 8. Key Features
-
-### 8.1 Dual-Level Anomaly Detection
-
-The system uses two independent Isolation Forest models:
-
-**Claim Isolation Forest** — detects unusual individual claim behavior using features such as:
-- Claim amount
-- Claim frequency
-- Service frequency
-- Procedure patterns
-- Diagnosis/procedure combinations
-- Temporal behavior
-- Provider-related claim statistics
-
-**Provider Isolation Forest** — detects unusual overall provider behavior using features such as:
-- Total services
-- Beneficiary count
-- Charges and allowed amounts
-- Medicare payments
-- Services per beneficiary
-- Payment per service
-- Unique service count
-- Service concentration
-- Peer deviation
-- Geographic deviation
-
-### 8.2 Peer Benchmarking
-
-Providers are compared against relevant peer groups rather than only fixed global thresholds, allowing the system to identify providers whose behavior is unusual relative to similar providers.
-
-### 8.3 Multi-Agent Investigation
-
-An orchestrator selects investigation specialists based on the available risk signals.
-
-| Agent | Investigates |
-|---|---|
-| **Billing Agent** | Claim amount deviations, claim/service frequency, repeated or similar claims, temporal spikes, procedure patterns |
-| **Peer Benchmark Agent** | Utilization, service volume, payment per service, service mix, geographic benchmarks, peer deviations |
-| **Clinical / Rule Agent** | Unusual service combinations, procedure/diagnosis consistency, excessive utilization, coding-related patterns, other predefined domain rules, relevant external evidence signals |
-
-Each agent produces structured findings and evidence rather than simply declaring a case fraudulent.
-
-### 8.4 Transparent Risk Synthesis
-
-Risk is calculated from multiple signals rather than allowing an LLM to arbitrarily decide the final numerical score:
-
-```text
-Claim Anomaly
-      +
-Provider Anomaly
-      +
-Agent Investigation Scores
-      +
-Peer Evidence
-      +
-Rule Evidence
-      │
-      ▼
-Overall Risk Score
-      │
-      ├── LOW
-      ├── MEDIUM
-      ├── HIGH
-      └── CRITICAL
-```
-
-The exact weighting can be configured in the scoring service.
-
-### 8.5 LEIE Evidence Integration
-
-The system matches provider NPIs against the CMS List of Excluded Individuals/Entities (LEIE):
-
-```text
-Provider NPI
-     │
-     ▼
-LEIE Lookup
-     │
- ┌───┴────┐
- ▼        ▼
-Match    No Match
- │
- ▼
-Evidence Signal
-```
-
-A LEIE match is treated as an **investigation/evidence signal**, not automatic proof of fraud.
-
-### 8.6 RAG-Based Explainability
-
-The RAG layer retrieves relevant evidence for a case, including agent findings, provider metrics, claim metrics, peer benchmark evidence, rule evidence, LEIE evidence, and relevant CMS-derived context. The retrieved evidence is then passed to the LLM to generate a concise explanation:
-
-```text
-Structured Case
-      +
-Agent Findings
-      +
-Evidence
-      │
-      ▼
-     RAG
-      │
-      ▼
-Retrieved Context
-      │
-      ▼
-     LLM
-      │
-      ▼
-Investigator Explanation
-```
-
-### 8.7 Investigator Dashboard
-
-**Dashboard:** total cases, high/medium-risk cases, risk distribution, top suspicious providers, investigation queue.
-
-
-**Investigation Queue** — ranks cases by risk and priority:
-
-| Priority | Case | Risk | Main Reason | Action |
-|---|---|---:|---|---|
-| P0 | CLM10231 | 92 | Multiple anomalies | Investigate |
-| P1 | P10045 | 87 | Strong peer deviation | Investigate |
-| P2 | CLM10982 | 61 | Utilization anomaly | Review |
-| P3 | P10342 | 32 | Minor deviation | Monitor |
-
-**Case Investigation** displays: overall risk, claim anomaly, provider anomaly, agent findings, evidence, peer comparison, rule hits, AI-generated explanation, and recommended investigation action.
-
-**Provider Analytics:** provider-level trends and peer comparisons.
-
-**System Analytics:** risk by state, risk by provider type, risk by year, high-risk service categories, anomaly distributions.
-
----
-
-## 9. System Architecture
-
-```text
-                         ┌──────────────────────┐
-                         │     DATA SOURCES      │
-                         ├──────────────────────┤
-                         │ Claims                │
-                         │ CMS By Provider       │
-                         │ Provider & Service    │
-                         │ Geography & Service   │
-                         │ LEIE                  │
-                         └───────────┬───────────┘
-                                     │
-                         ┌───────────▼───────────┐
-                         │  DATA ENGINEERING     │
-                         │                       │
-                         │ Cleaning              │
-                         │ Aggregation           │
-                         │ Entity Resolution     │
-                         │ Feature Engineering   │
-                         └───────────┬───────────┘
-                                     │
-                   ┌─────────────────┴─────────────────┐
-                   │                                    │
-         ┌─────────▼──────────┐              ┌──────────▼─────────┐
-         │  CLAIM PIPELINE     │              │ PROVIDER PIPELINE  │
-         │                     │              │                    │
-         │ Claim Features      │              │ Provider Features  │
-         │        ↓            │              │        ↓           │
-         │ Isolation Forest    │              │ Isolation Forest   │
-         │        ↓            │              │        ↓           │
-         │ Claim Risk          │              │ Provider Risk      │
-         └─────────┬──────────┘              └──────────┬─────────┘
-                   │                                    │
-                   └─────────────────┬──────────────────┘
-                                      ▼
-                         ┌───────────────────────┐
-                         │     ORCHESTRATOR       │
-                         └───────────┬───────────┘
-                                     │
-                    ┌────────────────┼────────────────┐
-                    ▼                ▼                 ▼
-              ┌──────────┐     ┌──────────┐     ┌───────────────┐
-              │ Billing  │     │   Peer    │     │   Clinical /  │
-              │  Agent   │     │  Agent    │     │  Rule Agent   │
-              └────┬─────┘     └────┬─────┘     └───────┬───────┘
-                   │                │                    │
-                   └────────────────┼────────────────────┘
-                                     ▼
-                         ┌───────────────────────┐
-                         │       SYNTHESIS        │
-                         │                        │
-                         │ Risk Aggregation       │
-                         │ Evidence Aggregation   │
-                         │ Priority Assignment    │
-                         └───────────┬───────────┘
-                                     ▼
-                         ┌──────────────────────────┐
-                         |  EXPLAINABILITY LAYER    │
-                         │                          │
-                         │ RAG(Evidence Retrieval   │
-                         │ FAISS + Embeddings)      |
-                         |        AND               |
-                         │     uses LLM  for        |  
-                         │    Explanation           │
-                         └───────────┬──────────────┘
-                                     ▼
-                         ┌───────────────────────┐
-                         │   INVESTIGATION UI    │
-                         │                       │
-                         │ Dashboard             │
-                         │ Investigation Queue   │
-                         │ Case Details          │
-                         │ Provider Analytics    │
-                         └───────────────────────┘
-```
-
----
-
-## 10. Machine Learning
-
-### Why Isolation Forest?
-
-Reliable labels for every fraudulent claim or provider are generally unavailable for this type of problem. Therefore, the system uses **unsupervised anomaly detection** to learn patterns of normal behavior and identify observations that significantly differ from the learned population.
-
-```text
-Normal Behavior
-      │
-      ▼
-Isolation Forest
-      │
-      ▼
-Unusual Observation
-      │
-      ▼
-Anomaly Score
-```
-
-The anomaly score is interpreted as a **risk signal**, not a confirmed fraud label.
-
----
-
-## 11. Technology Stack
-
-| Layer | Technology |
-|---|---|
-| Programming | Python |
-| Data Processing | Pandas |
-| Storage | Parquet |
-| Machine Learning | scikit-learn |
-| Anomaly Detection | Isolation Forest |
-| Agent Layer | CrewAI / LangGraph |
-| Embeddings | Sentence Transformers |
-| Vector Store | FAISS |
-| Generative AI | Gemini / Groq |
-| Backend | FastAPI |
-| Frontend | React |
-| Visualization | Recharts |
-| Styling | Tailwind CSS / Bootstrap |
-| Deployment | Docker / Azure |
-
----
-
-## 12. End-to-End Workflow
-
-**Offline Pipeline**
-
-```text
-Raw CMS / Claims Data
-        ↓
-Data Cleaning
-        ↓
-Feature Engineering
-        ↓
-Peer Benchmark Generation
-        ↓
-Train Isolation Forest Models
-        ↓
-Generate Anomaly Scores
-        ↓
-Generate Evidence Documents
-        ↓
-Create FAISS Index
-```
-
-**Real-Time Investigation**
-
-```text
-User selects case
-        ↓
-Load case features
-        ↓
-Retrieve anomaly scores
-        ↓
-Orchestrator
-        ↓
-Select investigation agents
-        ↓
-Run Billing / Peer / Rule agents
-        ↓
-Aggregate evidence
-        ↓
-Calculate final risk
-        ↓
-Retrieve supporting evidence
-        ↓
-Generate AI explanation
-        ↓
-Display investigation case
-```
-
----
-
-## 13. Example Case Walkthrough
-
-**Key Evidence**
-
-```text
-• Claim frequency significantly above baseline
-• Provider utilization 3.8× peer median
-• Payment/service substantially above peer benchmark
-• Rule R07 triggered
-```
-
-**AI Explanation**
-
-> The provider was prioritized because both claim-level and provider-level behavior showed significant deviations from expected patterns. The system identified abnormal claim frequency, substantial peer-level utilization deviation, and an additional rule-based consistency concern.
-
-The investigator can then decide whether to **Investigate**, **Review**, or **Monitor** the case.
-
----
-
-## 14. Future Enhancements
-
-- Graph-based provider/claim relationship analysis
-- Advanced temporal anomaly detection
-- Human feedback loops for investigator decisions
-- Supervised learning when reliable fraud labels become available
-- More sophisticated peer-group construction
-- Automated case management
-- Additional healthcare data sources
-- Model monitoring and drift detection
-- Role-based investigator access
-- Production-grade PostgreSQL deployment
-- Cloud deployment and scalable batch processing
-
----
-
-## 👥 Team
-
-**Team Number:** 7
-**Team Name:** Tech Vanguard
-
-**Team Members:**
-
-| Name | Register No. |
-|---|---|
-| Abisha K M | 111723201002 |
-| Kaviya Priya S | 111723201050 |
-| Kavya S | 111723201051 |
-| N Saranya | 111723201070 |
-| S M Pooja Shree | 111723201085 |
-| Y. Sanvi Reddy | 111723201113 |
-| N. Sri Nakshatra | 111723201117 |
-| M. Nitheesha | 111723201121 |
-
-**Faculty Mentors:** Dr. P. Shoba Rani, Dr. Muthazhagan B
-**Alumni Mentor:** Prathiksha
-
-This project was developed as part of the **Cognizant Hackathon 2026**.
+## Disclaimer
+
+This system supports human investigators. It does not make adjudication,
+payment, referral, or enforcement decisions. Outputs are investigative leads
+requiring human review and verification.

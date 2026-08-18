@@ -1,0 +1,38 @@
+# =====================================================================
+# Healthcare Claims FWA - AI Investigation Assistant
+# PHASES 1-10 dependencies active.
+# Later phases are listed but commented out so the environment stays
+# minimal until each phase is actually built.
+# =====================================================================
+
+# ---------- Phase 1: project setup ----------
+python-dotenv==1.0.1
+pyyaml==6.0.2
+
+# ---------- Phase 2: ingestion / chunking / embeddings ----------
+sentence-transformers>=3.0.0
+tqdm>=4.66.0
+
+# ---------- Phase 3: vector store ----------
+faiss-cpu>=1.8.0
+numpy>=1.26.0
+
+# ---------- Phase 4: LLM layer ----------
+openai>=1.40.0
+
+# ---------- Phase 5: backend API ----------
+fastapi>=0.111.0
+uvicorn[standard]>=0.30.0
+pydantic>=2.7.0
+
+# ---------- Phase 8: structured data layer ----------
+# DuckDB chosen after inspecting the datasets: ~950k rows needing rankings,
+# aggregations and joins, in a single portable file with no server.
+duckdb>=1.0.0
+
+# ---------- Phase 10: hybrid retrieval ----------
+rank-bm25>=0.2.2
+
+# ---------- Phase 11: testing ----------
+# pytest==8.2.2
+# httpx==0.27.0
