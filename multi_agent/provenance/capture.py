@@ -237,7 +237,11 @@ class ProvenanceCapture:
 
     def record_genai_explanation(
         self,
+<<<<<<< HEAD
         model_name: str = "openai/gpt-oss-120b",
+=======
+        model_name: str = "llama-3.3-70b-versatile",
+>>>>>>> b166e40 (removed old data)
         status: str = "generated",
         evidence_ids: Optional[List[str]] = None,
         duration_ms: Optional[int] = None,

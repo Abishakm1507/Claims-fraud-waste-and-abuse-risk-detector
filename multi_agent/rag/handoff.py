@@ -13,12 +13,16 @@ from multi_agent.models.schemas import (
     InvestigationCase,
     RAGExplanationRequest,
     RiskSynthesis,
+<<<<<<< HEAD
     RiskCategory,
     RiskPriority,
+=======
+>>>>>>> b166e40 (removed old data)
 )
 
 
 class RAGHandoffAdapter:
+<<<<<<< HEAD
     """Adapter that converts a completed InvestigationCase or InvestigationResult into the canonical RAG handoff contract."""
 
     @staticmethod
@@ -27,6 +31,16 @@ class RAGHandoffAdapter:
 
     @staticmethod
     def serialize(case: Union[InvestigationCase, Any]) -> str:
+=======
+    """Adapter that converts a completed InvestigationCase into the canonical RAG handoff contract."""
+
+    @staticmethod
+    def build(case: InvestigationCase) -> RAGExplanationRequest:
+        return build_rag_handoff(case)
+
+    @staticmethod
+    def serialize(case: InvestigationCase) -> str:
+>>>>>>> b166e40 (removed old data)
         return serialize_rag_handoff(case)
 
     @staticmethod
@@ -40,6 +54,7 @@ class RAGHandoffAdapter:
         return RAGExplanationRequest.model_validate(data)
 
 
+<<<<<<< HEAD
 def build_rag_handoff(case: Union[InvestigationCase, Any]) -> RAGExplanationRequest:
     if case is None:
         raise ValueError("A completed InvestigationCase or InvestigationResult is required for RAG handoff.")
@@ -51,6 +66,15 @@ def build_rag_handoff(case: Union[InvestigationCase, Any]) -> RAGExplanationRequ
     if not hasattr(case, "risk_synthesis") or case.risk_synthesis is None:
         # This is likely an InvestigationResult; build a minimal RiskSynthesis from it
         case = _wrap_investigation_result(case)
+=======
+def build_rag_handoff(case: InvestigationCase) -> RAGExplanationRequest:
+    if case is None:
+        raise ValueError("A completed InvestigationCase is required for RAG handoff.")
+    if not getattr(case, "case_id", None):
+        raise ValueError("InvestigationCase.case_id is required for RAG handoff.")
+    if case.risk_synthesis is None:
+        raise ValueError("InvestigationCase.risk_synthesis is required for RAG handoff.")
+>>>>>>> b166e40 (removed old data)
 
     evidence = list(case.evidence or [])
     findings = list(case.findings or [])
@@ -88,7 +112,11 @@ def build_rag_handoff(case: Union[InvestigationCase, Any]) -> RAGExplanationRequ
     return payload
 
 
+<<<<<<< HEAD
 def serialize_rag_handoff(case: Union[InvestigationCase, Any]) -> str:
+=======
+def serialize_rag_handoff(case: InvestigationCase) -> str:
+>>>>>>> b166e40 (removed old data)
     payload = build_rag_handoff(case)
     return json.dumps(payload.model_dump(mode="json", exclude_none=True), separators=(",", ":"), sort_keys=True)
 
@@ -114,6 +142,7 @@ def _collect_limitations(case: InvestigationCase) -> List[str]:
     if not limitations:
         limitations.append("No additional limitations captured for this investigation.")
     return limitations
+<<<<<<< HEAD
 
 
 def _wrap_investigation_result(result: Any) -> InvestigationCase:
@@ -166,3 +195,5 @@ def _wrap_investigation_result(result: Any) -> InvestigationCase:
     
     return case
 
+=======
+>>>>>>> b166e40 (removed old data)

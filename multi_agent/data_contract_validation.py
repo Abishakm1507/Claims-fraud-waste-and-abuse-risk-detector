@@ -8,14 +8,20 @@ import pandas as pd
 from multi_agent.models.schemas import CONTRACT_VERSION, InvestigationCase, InvestigationContext
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+<<<<<<< HEAD
 CLAIM_CSV = PROJECT_ROOT / "models" / "claims" / "carrier" / "carrier_final_risk_scores.csv"
 PROVIDER_CSV = PROJECT_ROOT / "models" / "provider" / "provider_risk_scores.csv"
+=======
+CLAIM_CSV = PROJECT_ROOT / "data" / "claims" / "final_unified_claim_risk.csv"
+PROVIDER_CSV = PROJECT_ROOT / "models" / "provider" / "output" / "provider_risk_scores.csv"
+>>>>>>> b166e40 (removed old data)
 
 
 class DataContractValidator:
     """Validate the real upstream ML CSVs against the Investigation Contract v1."""
 
     CLAIM_REQUIRED_FIELDS = [
+<<<<<<< HEAD
         ("claim_id", "CLM_ID"),
         ("provider_id", "PROVIDER_ID"),
         ("provider_id_type", "provider_id_type"),
@@ -23,6 +29,16 @@ class DataContractValidator:
         ("ensemble_score", "ensemble_score"),
         ("risk_rank", "risk_rank"),
         ("risk_band", "risk_band"),
+=======
+        ("claim_id", "CLAIM_ID"),
+        ("provider_id", "PROVIDER_ID"),
+        ("provider_id_type", "PROVIDER_ID_TYPE"),
+        ("claim_type", "CLAIM_TYPE"),
+        ("claim_risk_score", "CLAIM_RISK_SCORE"),
+        ("final_risk_level", "FINAL_RISK_LEVEL"),
+        ("final_risk_priority", "FINAL_RISK_PRIORITY"),
+        ("final_claim_rank", "FINAL_CLAIM_RANK"),
+>>>>>>> b166e40 (removed old data)
         ("claim_line_count", "claim_line_count"),
         ("beneficiary_claim_count", "beneficiary_claim_count"),
         ("provider_claim_count", "provider_claim_count"),
@@ -59,7 +75,11 @@ class DataContractValidator:
         claim_df = self._read_claims()
         provider_df = self._read_providers()
 
+<<<<<<< HEAD
         claim_type_counts = self._normalize_counts(claim_df, "claim_type")
+=======
+        claim_type_counts = self._normalize_counts(claim_df, "CLAIM_TYPE")
+>>>>>>> b166e40 (removed old data)
         limitations: List[str] = []
 
         required_fields = {
@@ -67,12 +87,21 @@ class DataContractValidator:
             "provider": self._summarize_field_availability(provider_df, self.PROVIDER_REQUIRED_FIELDS),
         }
 
+<<<<<<< HEAD
         if not self._field_is_present(claim_df, "CLM_ID"):
             limitations.append("Carrier claim export is missing the canonical CLM_ID field required by the contract.")
         if not self._field_is_present(claim_df, "provider_id"):
             limitations.append("Claim export does not include a normalized provider ID field for all claim types.")
         if not self._field_is_present(claim_df, "ensemble_score"):
             limitations.append("Claim export is missing the authoritative ensemble score used by the claim ML evidence layer.")
+=======
+        if not self._field_is_present(claim_df, "CLAIM_ID"):
+            limitations.append("Claim export is missing the canonical CLAIM_ID field required by the contract.")
+        if not self._field_is_present(claim_df, "PROVIDER_ID_TYPE"):
+            limitations.append("Claim export does not include provider_id_type metadata; contract will default to UNKNOWN.")
+        if not self._field_is_present(claim_df, "CLAIM_TYPE"):
+            limitations.append("Claim export is missing CLAIM_TYPE and cannot reliably classify agent routing.")
+>>>>>>> b166e40 (removed old data)
         if not self._field_is_present(provider_df, "Payment_per_Service_Peer_Mean") or not self._field_is_present(provider_df, "Payment_per_Service_Peer_Median"):
             limitations.append("Provider ML export does not include the full peer benchmark set; peer median/mean can be explicitly absent.")
         if not self._field_is_present(claim_df, "model_consensus"):
@@ -106,6 +135,7 @@ class DataContractValidator:
     def _read_claims(self) -> pd.DataFrame:
         if not self.claim_csv.exists():
             raise FileNotFoundError(f"Claim output not found: {self.claim_csv}")
+<<<<<<< HEAD
         frames = []
         for type_name in ("carrier", "inpatient", "outpatient"):
             path = self.claim_csv.parent.parent / type_name / f"{type_name}_final_risk_scores.csv"
@@ -155,10 +185,14 @@ class DataContractValidator:
         combined = pd.concat(frames, ignore_index=True)
         combined["CLM_ID"] = combined["claim_id"]
         return combined
+=======
+        return pd.read_csv(self.claim_csv, low_memory=False)
+>>>>>>> b166e40 (removed old data)
 
     def _read_providers(self) -> pd.DataFrame:
         if not self.provider_csv.exists():
             raise FileNotFoundError(f"Provider output not found: {self.provider_csv}")
+<<<<<<< HEAD
         df = pd.read_csv(self.provider_csv, low_memory=False).copy()
         if "NPI" not in df.columns and "npi" in df.columns:
             df = df.rename(columns={"npi": "NPI"})
@@ -185,6 +219,9 @@ class DataContractValidator:
         if "Payment_per_Service_Deviation_Ratio" not in df.columns:
             df["Payment_per_Service_Deviation_Ratio"] = 1.0
         return df
+=======
+        return pd.read_csv(self.provider_csv, low_memory=False)
+>>>>>>> b166e40 (removed old data)
 
     @staticmethod
     def _field_is_present(df: pd.DataFrame, field: str) -> bool:
@@ -222,6 +259,7 @@ class DataContractValidator:
         return {str(k): int(v) for k, v in counts.items() if k is not None}
 
     def _can_populate_context(self, claim_df: pd.DataFrame, provider_df: pd.DataFrame) -> bool:
+<<<<<<< HEAD
         if provider_df.empty or claim_df.empty:
             return False
 
@@ -238,6 +276,22 @@ class DataContractValidator:
         npi_field = "NPI" if "NPI" in provider_df.columns else "npi"
         provider_score_field = "Provider_Risk_Score" if "Provider_Risk_Score" in provider_df.columns else "provider_risk_score"
         if npi_field not in provider_df.columns or provider_score_field not in provider_df.columns:
+=======
+        required = [
+            "CLAIM_ID",
+            "PROVIDER_ID",
+            "PROVIDER_ID_TYPE",
+            "CLAIM_TYPE",
+            "CLAIM_RISK_SCORE",
+        ]
+        if not all(field in claim_df.columns for field in required):
+            return False
+        if provider_df.empty or claim_df.empty:
+            return False
+        if "NPI" not in provider_df.columns or "Provider_Risk_Score" not in provider_df.columns:
+            return False
+        if not claim_df["CLAIM_TYPE"].dropna().isin({"CARRIER", "INPATIENT", "OUTPATIENT"}).all():
+>>>>>>> b166e40 (removed old data)
             return False
         return True
 
@@ -247,6 +301,7 @@ class DataContractValidator:
 
         sample_claim = claim_df.iloc[0]
         sample_provider = provider_df.iloc[0]
+<<<<<<< HEAD
         claim_key = "CLM_ID" if "CLM_ID" in sample_claim.index else "claim_id"
         provider_key = "provider_id" if "provider_id" in sample_claim.index else ("PROVIDER_ID" if "PROVIDER_ID" in sample_claim.index else "CARR_CLM_BLG_NPI_NUM_first")
         provider_id_type = "NPI" if str(sample_claim.get("provider_id_type") or "").upper() == "NPI" else "PRVDR_NUM"
@@ -266,6 +321,43 @@ class DataContractValidator:
             }
             assert investigation_context["claim_id"]
             assert investigation_context["provider_id_type"] in {"NPI", "PRVDR_NUM"}
+=======
+        case_id = str(sample_claim.get("CLAIM_ID", "CASE-000"))
+        provider_id = sample_claim.get("PROVIDER_ID")
+        provider_id_type = sample_claim.get("PROVIDER_ID_TYPE") or "UNKNOWN"
+        claim_type = sample_claim.get("CLAIM_TYPE")
+
+        try:
+            investigation_context = InvestigationContext(
+                case_id=case_id,
+                claim_id=str(sample_claim.get("CLAIM_ID", "UNKNOWN")),
+                provider_id=str(provider_id) if provider_id is not None else None,
+                provider_id_type=str(provider_id_type).upper(),
+                claim_type=str(claim_type) if claim_type is not None else None,
+                claim_anomaly=float(sample_claim.get("CLAIM_RISK_SCORE")) if pd.notna(sample_claim.get("CLAIM_RISK_SCORE")) else None,
+                provider_anomaly=float(sample_provider.get("Provider_Risk_Score")) if pd.notna(sample_provider.get("Provider_Risk_Score")) else None,
+                claim_features={},
+                provider_features={},
+                peer_features={},
+                leie_evidence={},
+                data_availability={},
+                metadata={"source": "real_ml_exports"},
+                provenance={"claim_csv": str(self.claim_csv), "provider_csv": str(self.provider_csv)},
+            )
+            InvestigationCase(
+                case_id=case_id,
+                claim_id=str(sample_claim.get("CLAIM_ID", "UNKNOWN")),
+                provider_id=str(provider_id) if provider_id is not None else None,
+                provider_id_type=str(provider_id_type).upper(),
+                claim_type=str(claim_type) if claim_type is not None else None,
+                investigation_context=investigation_context,
+                findings=[],
+                evidence=[],
+                agent_results=[],
+                agent_executions=[],
+                provenance={"source": "real_ml_exports"},
+            )
+>>>>>>> b166e40 (removed old data)
             return True
         except Exception:
             return False

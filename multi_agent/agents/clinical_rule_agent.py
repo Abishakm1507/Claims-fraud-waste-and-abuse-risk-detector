@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+<<<<<<< HEAD
 from dataclasses import dataclass
 from math import isnan
 from typing import Any, Dict, List, Optional
@@ -20,6 +21,13 @@ class ClinicalRuleAgentResult:
     narrative: str
     tools_called: List[str]
     status: str
+=======
+from math import isnan
+from typing import Any, Dict, List, Optional
+
+from multi_agent.schemas.finding import Finding
+from multi_agent.schemas.investigation_case import InvestigationCase
+>>>>>>> b166e40 (removed old data)
 
 
 class ClinicalRuleAgent:
@@ -30,6 +38,7 @@ class ClinicalRuleAgent:
     rule and utilization evidence that is already present in the exported claim data.
     """
 
+<<<<<<< HEAD
     def __init__(self, llm_service: Optional[InvestigationExplanationService] = None, llm_agent_service: Optional[LLMAgentService] = None, llm_config: Optional[Dict[str, Any]] = None):
         self.llm_service = llm_service or InvestigationExplanationService(enabled=True)
         self.llm_config = llm_config or DEFAULT_AGENT_LLM_CONFIG["clinical_rule"].to_dict()
@@ -172,13 +181,19 @@ class ClinicalRuleAgent:
                 )
         return findings
 
+=======
+>>>>>>> b166e40 (removed old data)
     def investigate(self, case: InvestigationCase) -> List[Finding]:
         if case is None or case.claim is None:
             return []
 
         claim = case.claim
         if claim.claim_type in {None, "CARRIER"}:
+<<<<<<< HEAD
             return self._complete_with_llm(case, [])
+=======
+            return []
+>>>>>>> b166e40 (removed old data)
 
         findings: List[Finding] = []
 
@@ -187,6 +202,7 @@ class ClinicalRuleAgent:
         elif claim.claim_type == "INPATIENT":
             findings.extend(self._inpatient_findings(claim))
 
+<<<<<<< HEAD
         return self._complete_with_llm(case, findings)
 
     def _complete_with_llm(self, case: InvestigationCase, findings: List[Finding]) -> List[Finding]:
@@ -209,6 +225,10 @@ class ClinicalRuleAgent:
         reasoning = self.llm_service.generate_structured_reasoning("clinical_rule", context, fallback=fallback)
         return str(reasoning.get("narrative") or fallback)
 
+=======
+        return findings
+
+>>>>>>> b166e40 (removed old data)
     def _outpatient_findings(self, claim) -> List[Finding]:
         findings: List[Finding] = []
         utilization = self._values(claim.utilization_evidence)

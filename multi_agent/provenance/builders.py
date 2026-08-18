@@ -401,7 +401,11 @@ class GenAIMetadataBuilder:
     @staticmethod
     def create(
         case_id: str,
+<<<<<<< HEAD
         model_name: str = "openai/gpt-oss-120b",
+=======
+        model_name: str = "llama-3.3-70b-versatile",
+>>>>>>> b166e40 (removed old data)
         provider: str = "Groq",
         model_version: Optional[str] = None,
         prompt_version: Optional[str] = None,

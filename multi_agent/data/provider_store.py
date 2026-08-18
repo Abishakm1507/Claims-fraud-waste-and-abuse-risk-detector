@@ -8,7 +8,11 @@ import pandas as pd
 from multi_agent.schemas.provider_context import ProviderContext
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+<<<<<<< HEAD
 DEFAULT_PROVIDER_CSV = PROJECT_ROOT / "models" / "provider" / "provider_risk_scores.csv"
+=======
+DEFAULT_PROVIDER_CSV = PROJECT_ROOT / "models" / "provider" / "output" / "provider_risk_scores.csv"
+>>>>>>> b166e40 (removed old data)
 
 
 class ProviderStore:
@@ -19,7 +23,11 @@ class ProviderStore:
         if not csv_path.exists():
             raise FileNotFoundError(f"Provider risk output not found: {csv_path}")
         self.csv_path = csv_path
+<<<<<<< HEAD
         self._df = self._read_provider_data(csv_path)
+=======
+        self._df = pd.read_csv(csv_path, low_memory=False)
+>>>>>>> b166e40 (removed old data)
         self._by_npi: Dict[int, pd.Series] = {}
         for _, row in self._df.iterrows():
             npi = self._coerce_npi(row.get("NPI"))
@@ -30,6 +38,7 @@ class ProviderStore:
             self._by_npi[npi] = row
 
     @staticmethod
+<<<<<<< HEAD
     def _read_provider_data(csv_path: Path) -> pd.DataFrame:
         df = pd.read_csv(csv_path, low_memory=False).copy()
         if "NPI" not in df.columns and "npi" in df.columns:
@@ -93,6 +102,8 @@ class ProviderStore:
         return df
 
     @staticmethod
+=======
+>>>>>>> b166e40 (removed old data)
     def _coerce_npi(value):
         if value is None or pd.isna(value):
             return None

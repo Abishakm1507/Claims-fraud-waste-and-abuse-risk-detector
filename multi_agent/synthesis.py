@@ -6,7 +6,10 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence
 
 from multi_agent.schemas.finding import Finding
 from multi_agent.schemas.investigation_case import InvestigationCase
+<<<<<<< HEAD
 from multi_agent.utils.redaction import redact_for_llm
+=======
+>>>>>>> b166e40 (removed old data)
 
 SEVERITY_WEIGHTS = {
     "INFO": 0,
@@ -52,6 +55,7 @@ class InvestigationResult:
     investigation_priority: str = "LOW"
     strongest_evidence: List[Finding] = field(default_factory=list)
     explanation: str = ""
+<<<<<<< HEAD
     cross_validation_summary: str = ""
     conflicts: List[str] = field(default_factory=list)
     synthesis_narrative: str = ""
@@ -61,6 +65,11 @@ class InvestigationResult:
     agent_errors: Dict[str, str] = field(default_factory=dict)
     evidence_quality: Dict[str, int] = field(default_factory=dict)
     diagnostic_timing: Dict[str, float] = field(default_factory=dict)
+=======
+    status: str = "OPEN"
+    agent_errors: Dict[str, str] = field(default_factory=dict)
+    evidence_quality: Dict[str, int] = field(default_factory=dict)
+>>>>>>> b166e40 (removed old data)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -88,11 +97,14 @@ class InvestigationResult:
             "investigation_priority": self.investigation_priority,
             "strongest_evidence": [f.__dict__ for f in self.strongest_evidence],
             "explanation": self.explanation,
+<<<<<<< HEAD
             "cross_validation_summary": self.cross_validation_summary,
             "conflicts": self.conflicts,
             "synthesis_narrative": self.synthesis_narrative,
             "agent_narratives": self.agent_narratives,
             "llm_reasoning": self.llm_reasoning,
+=======
+>>>>>>> b166e40 (removed old data)
             "status": self.status,
             "agent_errors": self.agent_errors,
             "evidence_quality": self.evidence_quality,
@@ -116,8 +128,11 @@ class Synthesis:
         peer_findings: Optional[Sequence[Finding]] = None,
         clinical_rule_findings: Optional[Sequence[Finding]] = None,
         agent_errors: Optional[Dict[str, str]] = None,
+<<<<<<< HEAD
         agent_narratives: Optional[Dict[str, str]] = None,
         tools_by_agent: Optional[Dict[str, list]] = None,
+=======
+>>>>>>> b166e40 (removed old data)
     ) -> InvestigationResult:
         if case is None:
             case = InvestigationCase(case_id="UNKNOWN", claim_id="UNKNOWN")
@@ -145,8 +160,11 @@ class Synthesis:
         strongest_evidence = self._strongest_evidence(all_findings)
         explanation = self._build_explanation(all_findings, findings_by_agent)
         evidence_quality = self._evidence_quality(all_findings)
+<<<<<<< HEAD
         agent_narratives = agent_narratives or self._collect_agent_narratives(billing, peer, clinical)
         synthesis_narrative, cross_validation_summary, conflicts = self._llm_synthesis_summary(case, findings_by_agent, agent_narratives)
+=======
+>>>>>>> b166e40 (removed old data)
 
         result = InvestigationResult(
             case_id=case.case_id,
@@ -172,11 +190,14 @@ class Synthesis:
             investigation_priority=investigation_priority,
             strongest_evidence=strongest_evidence,
             explanation=explanation,
+<<<<<<< HEAD
             cross_validation_summary=cross_validation_summary,
             conflicts=conflicts,
             synthesis_narrative=synthesis_narrative,
             agent_narratives=agent_narratives,
             llm_reasoning={"status": "generated" if synthesis_narrative else "fallback", "conflicts": conflicts},
+=======
+>>>>>>> b166e40 (removed old data)
             status=status,
             agent_errors=(agent_errors or {}),
             evidence_quality=evidence_quality,
@@ -184,6 +205,7 @@ class Synthesis:
         return result
 
     @staticmethod
+<<<<<<< HEAD
     def _collect_agent_narratives(billing: Sequence[Finding], peer: Sequence[Finding], clinical: Sequence[Finding]) -> Dict[str, str]:
         narratives: Dict[str, str] = {}
         for agent_name, findings in {"billing": billing, "peer": peer, "clinical_rule": clinical}.items():
@@ -296,6 +318,8 @@ class Synthesis:
             return fallback, summary, conflicts or ["Literal evidence was prioritized over speculative cross-agent conclusions."]
 
     @staticmethod
+=======
+>>>>>>> b166e40 (removed old data)
     def _safe_list(items: Optional[Sequence[Finding]]) -> List[Finding]:
         if items is None:
             return []

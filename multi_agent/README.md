@@ -126,6 +126,7 @@ It combines:
 
 ------------------------------------------------------------------------
 
+<<<<<<< HEAD
 # 3. Current Architecture (Phase 3/4 Hardening)
 
 The module follows a two-layer pattern:
@@ -159,6 +160,9 @@ Critical hardening decisions:
 ------------------------------------------------------------------------
 
 # 4. Core Design Principles
+=======
+# 3. Core Design Principles
+>>>>>>> b166e40 (removed old data)
 
 ## 3.1 Deterministic first
 
@@ -1273,6 +1277,7 @@ Orchestrator
 
 ------------------------------------------------------------------------
 
+<<<<<<< HEAD
 # 22. Running the Multi-Agent System
 
 ## Prerequisites
@@ -1573,6 +1578,9 @@ result = Orchestrator().investigate_claim(claim_id="YOUR_CLAIM_ID")
 ------------------------------------------------------------------------
 
 # 23. Maintenance Rule
+=======
+# 22. Maintenance Rule
+>>>>>>> b166e40 (removed old data)
 
 Any future change to the module should update:
 

@@ -8,7 +8,11 @@ import pandas as pd
 from multi_agent.schemas.claim_context import ClaimContext, EvidenceBundle
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+<<<<<<< HEAD
 DEFAULT_CLAIM_CSV = PROJECT_ROOT / "models" / "claims"
+=======
+DEFAULT_CLAIM_CSV = PROJECT_ROOT / "data" / "claims" / "final_unified_claim_risk.csv"
+>>>>>>> b166e40 (removed old data)
 
 
 class ClaimStore:
@@ -19,7 +23,11 @@ class ClaimStore:
         if not csv_path.exists():
             raise FileNotFoundError(f"Claim output not found: {csv_path}")
         self.csv_path = csv_path
+<<<<<<< HEAD
         self._df = self._read_claims(csv_path)
+=======
+        self._df = pd.read_csv(csv_path, low_memory=False)
+>>>>>>> b166e40 (removed old data)
         self._by_claim_id: Dict[str, pd.Series] = {}
         self._by_provider: Dict[str, List[str]] = {}
         self._by_beneficiary: Dict[str, List[str]] = {}
@@ -38,6 +46,7 @@ class ClaimStore:
             self._by_beneficiary.setdefault(bene_id, []).append(claim_id)
 
     @staticmethod
+<<<<<<< HEAD
     def _read_claims(csv_path: Path) -> pd.DataFrame:
         if csv_path.is_dir():
             frames = []
@@ -95,6 +104,8 @@ class ClaimStore:
         return df
 
     @staticmethod
+=======
+>>>>>>> b166e40 (removed old data)
     def _canonicalize_claim_id(value):
         text = ClaimStore._coerce_text(value)
         if text is None:
@@ -143,8 +154,11 @@ class ClaimStore:
         provider_id_type = self._coerce_text(row.get("PROVIDER_ID_TYPE"))
         if provider_id_type is not None:
             provider_id_type = provider_id_type.upper()
+<<<<<<< HEAD
         elif claim_type in {"CARRIER", "INPATIENT", "OUTPATIENT"}:
             provider_id_type = "NPI" if claim_type == "CARRIER" else "PRVDR_NUM"
+=======
+>>>>>>> b166e40 (removed old data)
         bene_id = claim_id
 
         risk_score = self._to_float(row.get("CLAIM_RISK_SCORE"))

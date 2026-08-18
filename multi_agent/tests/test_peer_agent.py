@@ -257,6 +257,7 @@ def test_provider_risk_context_is_not_modified():
 
 
 def test_real_provider_records_validation():
+<<<<<<< HEAD
     """Test peer agent with mock providers of different risk tiers.
     
     Note: Real provider CSV has column name mismatch (lowercase 'npi' vs uppercase 'NPI'),
@@ -315,12 +316,27 @@ def test_real_provider_records_validation():
 
     store = ProviderStore()
     for provider in [low_provider, moderate_provider, high_provider]:
+=======
+    store = ProviderStore()
+    low = store.get_provider(1003569997)
+    moderate = store.get_provider(1003806670)
+    high = store.get_provider(1003056227)
+    assert low is not None
+    assert moderate is not None
+    assert high is not None
+
+    for provider in [low, moderate, high]:
+>>>>>>> b166e40 (removed old data)
         case = make_case(ClaimContext(claim_id=f"case-{provider.npi}", claim_type="OUTPATIENT", provider_id=str(provider.npi), provider_id_type="NPI"))
         case.provider = provider
         findings = PeerAgent(provider_store=store).investigate(case)
         assert isinstance(findings, list)
         for finding in findings:
             assert finding.agent == "peer"
+<<<<<<< HEAD
             assert finding.category in {"peer_comparison", "geo_comparison", "provider_context"}
+=======
+            assert finding.category in {"peer_comparison", "geo_comparison"}
+>>>>>>> b166e40 (removed old data)
             assert finding.evidence is not None
             assert finding.confidence is not None

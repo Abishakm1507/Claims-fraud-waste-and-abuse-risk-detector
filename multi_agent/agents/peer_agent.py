@@ -1,13 +1,19 @@
 from __future__ import annotations
 
+<<<<<<< HEAD
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from multi_agent.config.agent_llm_config import DEFAULT_AGENT_LLM_CONFIG
+=======
+from typing import Any, Dict, List, Optional, Sequence, Tuple
+
+>>>>>>> b166e40 (removed old data)
 from multi_agent.data.provider_store import ProviderStore
 from multi_agent.schemas.finding import Finding
 from multi_agent.schemas.investigation_case import InvestigationCase
 from multi_agent.schemas.provider_context import ProviderContext
+<<<<<<< HEAD
 from multi_agent.services.llm_agent_service import LLMAgentService, ToolDefinition
 from multi_agent.services.explanation_service import InvestigationExplanationService
 from multi_agent.utils.redaction import redact_for_llm
@@ -21,6 +27,8 @@ class PeerAgentResult:
     narrative: str
     tools_called: List[str]
     status: str
+=======
+>>>>>>> b166e40 (removed old data)
 
 
 class PeerAgent:
@@ -34,6 +42,7 @@ class PeerAgent:
         ("Svc_HHI_Concentration", "svc_hhi_concentration", "svc_hhi_concentration_peer_median"),
     )
 
+<<<<<<< HEAD
     def __init__(self, provider_store: Optional[ProviderStore] = None, llm_service: Optional[InvestigationExplanationService] = None, llm_agent_service: Optional[LLMAgentService] = None, llm_config: Optional[Dict[str, Any]] = None):
         self.provider_store = provider_store or ProviderStore()
         self.llm_service = llm_service or InvestigationExplanationService(enabled=True)
@@ -189,6 +198,10 @@ class PeerAgent:
                 )
             )
         return findings
+=======
+    def __init__(self, provider_store: Optional[ProviderStore] = None):
+        self.provider_store = provider_store or ProviderStore()
+>>>>>>> b166e40 (removed old data)
 
     def investigate(self, case: InvestigationCase) -> List[Finding]:
         if case is None or case.claim is None:
@@ -300,6 +313,7 @@ class PeerAgent:
                 )
             )
 
+<<<<<<< HEAD
         return self._complete_with_llm(case, findings)
 
     def _complete_with_llm(self, case: InvestigationCase, findings: List[Finding]) -> List[Finding]:
@@ -322,6 +336,10 @@ class PeerAgent:
         reasoning = self.llm_service.generate_structured_reasoning("peer", context, fallback=fallback)
         return str(reasoning.get("narrative") or fallback)
 
+=======
+        return findings
+
+>>>>>>> b166e40 (removed old data)
     def _resolve_provider(self, case: InvestigationCase, provider_id: Any) -> Optional[ProviderContext]:
         if case.provider is not None:
             try:

@@ -1,0 +1,5 @@
+<<<<<<< HEAD
+* text=auto eol=lf
+=======
+*.csv filter=lfs diff=lfs merge=lfs -text
+>>>>>>> 55160aa26f1a142f77ef56ee726c8e4081bcd52c
