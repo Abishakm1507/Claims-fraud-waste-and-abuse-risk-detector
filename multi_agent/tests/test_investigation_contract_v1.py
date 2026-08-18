@@ -288,7 +288,7 @@ def test_genai_explanation_schema():
     explanation = GenAIExplanation(
         explanation_id="GE-1",
         model_provider="Groq",
-        model_name="llama-3.3-70b-versatile",
+        model_name="openai/gpt-oss-120b",
         summary="The claim is elevated by billing evidence.",
         key_findings=[{"agent": "billing", "finding": "High payment-to-charge ratio."}],
         evidence_references=["EV-001"],

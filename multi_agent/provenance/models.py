@@ -243,7 +243,7 @@ class GenAIMetadata(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     provider: str = Field(default="Groq", description="GenAI provider")
-    model_name: str = Field(..., description="Model name (e.g., llama-3.3-70b-versatile)")
+    model_name: str = Field(..., description="Model name (e.g., openai/gpt-oss-120b)")
     model_version: Optional[str] = Field(None, description="Model version if available")
 
     prompt_version: Optional[str] = Field(

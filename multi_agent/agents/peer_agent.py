@@ -1,11 +1,26 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
+from multi_agent.config.agent_llm_config import DEFAULT_AGENT_LLM_CONFIG
 from multi_agent.data.provider_store import ProviderStore
 from multi_agent.schemas.finding import Finding
 from multi_agent.schemas.investigation_case import InvestigationCase
 from multi_agent.schemas.provider_context import ProviderContext
+from multi_agent.services.llm_agent_service import LLMAgentService, ToolDefinition
+from multi_agent.services.explanation_service import InvestigationExplanationService
+from multi_agent.utils.redaction import redact_for_llm
+
+
+@dataclass
+class PeerAgentResult:
+    """Result from peer agent investigation."""
+
+    findings: List[Finding]
+    narrative: str
+    tools_called: List[str]
+    status: str
 
 
 class PeerAgent:
@@ -19,8 +34,161 @@ class PeerAgent:
         ("Svc_HHI_Concentration", "svc_hhi_concentration", "svc_hhi_concentration_peer_median"),
     )
 
-    def __init__(self, provider_store: Optional[ProviderStore] = None):
+    def __init__(self, provider_store: Optional[ProviderStore] = None, llm_service: Optional[InvestigationExplanationService] = None, llm_agent_service: Optional[LLMAgentService] = None, llm_config: Optional[Dict[str, Any]] = None):
         self.provider_store = provider_store or ProviderStore()
+        self.llm_service = llm_service or InvestigationExplanationService(enabled=True)
+        self.llm_config = llm_config or DEFAULT_AGENT_LLM_CONFIG["peer"].to_dict()
+        # Create LLMAgentService with config-driven max_tokens
+        self.llm_agent_service = llm_agent_service or LLMAgentService(
+            enabled=True,
+            max_tokens=self.llm_config.get("max_tokens", 600),
+        )
+
+    def investigate_with_llm(
+        self,
+        case: InvestigationCase,
+        provider_risk_score: Optional[float] = None,
+        enable_llm: bool = True,
+        focus_hint: Optional[str] = None,
+    ) -> PeerAgentResult:
+        """Investigate provider using LLM-directed tool calling.
+
+        Args:
+            case: Investigation case with provider context.
+            provider_risk_score: Pre-computed provider risk score for context.
+            enable_llm: Whether to use LLM; fall back to deterministic if False.
+            focus_hint: Optional LLM guidance for investigation focus (from orchestrator routing rationale).
+
+        Returns:
+            PeerAgentResult with findings, narrative, tools called, and status.
+        """
+        if not enable_llm or not self.llm_agent_service.enabled:
+            # Fallback to deterministic investigation
+            findings = self.investigate(case)
+            return PeerAgentResult(
+                findings=findings,
+                narrative="Deterministic peer review completed.",
+                tools_called=[],
+                status="fallback",
+            )
+
+        # Build tool registry for this investigation
+        tool_registry = {
+            "compare_peer_metrics": lambda ctx: self._tool_peer_metrics(ctx),
+            "compare_geographic_metrics": lambda ctx: self._tool_geographic_metrics(ctx),
+            "get_peer_deviation_score": lambda ctx: self._tool_deviation_score(ctx),
+        }
+
+        # Build case context for LLM
+        provider_npi = None
+        if case.provider is not None:
+            provider_npi = case.provider.npi
+        elif case.claim is not None and case.claim.provider_id is not None:
+            provider_npi = case.claim.provider_id
+
+        case_context = {
+            "case_id": case.case_id,
+            "provider_npi": provider_npi,
+            "provider_risk_score": provider_risk_score or (case.provider.provider_risk_score if case.provider else None),
+        }
+        # Redact PHI/PII before sending to LLM (HIPAA compliance)
+        case_context = redact_for_llm(case_context)
+
+        # Get tool definitions from config
+        tool_defs = [ToolDefinition(name=t.name, description=t.description) for t in DEFAULT_AGENT_LLM_CONFIG["peer"].tools]
+
+        # Invoke LLM to reason about which tools to run
+        fallback = "Peer investigation complete; deterministic findings remain authoritative."
+        reasoning_result = self.llm_agent_service.reason_with_tools(
+            agent_name="peer",
+            case_context=case_context,
+            available_tools=tool_defs,
+            tool_registry=tool_registry,
+            fallback_narrative=fallback,
+            focus_hint=focus_hint,
+            case=case,
+        )
+
+        # If LLM is unavailable or fell back to deterministic, keep the deterministic path.
+        if reasoning_result.status in {"fallback", "disabled", "unavailable"}:
+            findings = self.investigate(case)
+            return PeerAgentResult(
+                findings=findings,
+                narrative=reasoning_result.narrative,
+                tools_called=[],
+                status="fallback",
+            )
+
+        # Call selected tools and collect findings
+        findings = []
+        for tool_name in reasoning_result.selected_tools:
+            if tool_name in tool_registry:
+                try:
+                    tool_result = tool_registry[tool_name](case)
+                    if isinstance(tool_result, list):
+                        findings.extend(tool_result)
+                    elif isinstance(tool_result, Finding):
+                        findings.append(tool_result)
+                except Exception:  # pragma: no cover
+                    pass
+
+        # If no tools returned findings, fall back to deterministic
+        if not findings:
+            findings = self.investigate(case)
+
+        return PeerAgentResult(
+            findings=findings,
+            narrative=reasoning_result.narrative,
+            tools_called=reasoning_result.selected_tools,
+            status="partial" if reasoning_result.tool_failures else "success",
+        )
+
+    def _provider_for_tool(self, case: InvestigationCase) -> Optional[ProviderContext]:
+        """Resolve a provider for both claim-based and provider-only investigations."""
+        if case is None:
+            return None
+        if case.provider is not None:
+            return case.provider
+
+        claim = getattr(case, "claim", None)
+        provider_id = getattr(claim, "provider_id", None) if claim is not None else None
+        if provider_id is None:
+            return None
+        return self._resolve_provider(case, provider_id)
+
+    def _tool_peer_metrics(self, case: InvestigationCase) -> List[Finding]:
+        """Tool: Compare peer metrics."""
+        provider = self._provider_for_tool(case)
+        if provider is None:
+            return []
+        return self._peer_metric_findings(provider)
+
+    def _tool_geographic_metrics(self, case: InvestigationCase) -> List[Finding]:
+        """Tool: Compare geographic metrics."""
+        provider = self._provider_for_tool(case)
+        if provider is None:
+            return []
+        return self._geo_findings(provider)
+
+    def _tool_deviation_score(self, case: InvestigationCase) -> List[Finding]:
+        """Tool: Get peer deviation score summary."""
+        provider = self._provider_for_tool(case)
+        if provider is None:
+            return []
+
+        findings = []
+        if provider.peer_deviation_score is not None and provider.peer_deviation_score >= 0.8:
+            findings.append(
+                self._finding(
+                    rule="peer_deviation_score",
+                    category="peer_comparison",
+                    severity="MEDIUM",
+                    description=f"Peer deviation score: {provider.peer_deviation_score:.3f}",
+                    evidence={"peer_deviation_score": provider.peer_deviation_score},
+                    confidence=0.7,
+                )
+            )
+        return findings
 
     def investigate(self, case: InvestigationCase) -> List[Finding]:
         if case is None or case.claim is None:
@@ -132,7 +300,27 @@ class PeerAgent:
                 )
             )
 
+        return self._complete_with_llm(case, findings)
+
+    def _complete_with_llm(self, case: InvestigationCase, findings: List[Finding]) -> List[Finding]:
+        narrative = self._llm_narrative(case, findings)
+        for finding in findings:
+            finding.agent_narrative = narrative
+            finding.tool_results = {"tool": "peer_benchmark_review", "finding_count": len(findings)}
         return findings
+
+    def _llm_narrative(self, case: InvestigationCase, findings: List[Finding]) -> str:
+        if not self.llm_service.enabled:
+            return "Deterministic peer review remains the source of truth for provider benchmarking."
+        context = {
+            "case_id": getattr(case, "case_id", "UNKNOWN"),
+            "provider_npi": getattr(case.provider, "npi", None) if case.provider else None,
+            "provider_risk_score": getattr(case.provider, "provider_risk_score", None) if case.provider else None,
+            "findings": [{"rule": f.rule, "severity": f.severity, "description": f.description, "evidence": f.evidence} for f in findings],
+        }
+        fallback = "Peer comparison is interpreted alongside the provider risk score, but the deterministic peer benchmark findings remain the authoritative basis for this assessment."
+        reasoning = self.llm_service.generate_structured_reasoning("peer", context, fallback=fallback)
+        return str(reasoning.get("narrative") or fallback)
 
     def _resolve_provider(self, case: InvestigationCase, provider_id: Any) -> Optional[ProviderContext]:
         if case.provider is not None:

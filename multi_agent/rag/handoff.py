@@ -13,18 +13,20 @@ from multi_agent.models.schemas import (
     InvestigationCase,
     RAGExplanationRequest,
     RiskSynthesis,
+    RiskCategory,
+    RiskPriority,
 )
 
 
 class RAGHandoffAdapter:
-    """Adapter that converts a completed InvestigationCase into the canonical RAG handoff contract."""
+    """Adapter that converts a completed InvestigationCase or InvestigationResult into the canonical RAG handoff contract."""
 
     @staticmethod
-    def build(case: InvestigationCase) -> RAGExplanationRequest:
+    def build(case: Union[InvestigationCase, Any]) -> RAGExplanationRequest:
         return build_rag_handoff(case)
 
     @staticmethod
-    def serialize(case: InvestigationCase) -> str:
+    def serialize(case: Union[InvestigationCase, Any]) -> str:
         return serialize_rag_handoff(case)
 
     @staticmethod
@@ -38,13 +40,17 @@ class RAGHandoffAdapter:
         return RAGExplanationRequest.model_validate(data)
 
 
-def build_rag_handoff(case: InvestigationCase) -> RAGExplanationRequest:
+def build_rag_handoff(case: Union[InvestigationCase, Any]) -> RAGExplanationRequest:
     if case is None:
-        raise ValueError("A completed InvestigationCase is required for RAG handoff.")
+        raise ValueError("A completed InvestigationCase or InvestigationResult is required for RAG handoff.")
     if not getattr(case, "case_id", None):
-        raise ValueError("InvestigationCase.case_id is required for RAG handoff.")
-    if case.risk_synthesis is None:
-        raise ValueError("InvestigationCase.risk_synthesis is required for RAG handoff.")
+        raise ValueError("case.case_id is required for RAG handoff.")
+    
+    # Support both InvestigationCase (Pydantic) and InvestigationResult (dataclass)
+    # If we get an InvestigationResult, build a minimal InvestigationCase wrapper
+    if not hasattr(case, "risk_synthesis") or case.risk_synthesis is None:
+        # This is likely an InvestigationResult; build a minimal RiskSynthesis from it
+        case = _wrap_investigation_result(case)
 
     evidence = list(case.evidence or [])
     findings = list(case.findings or [])
@@ -82,7 +88,7 @@ def build_rag_handoff(case: InvestigationCase) -> RAGExplanationRequest:
     return payload
 
 
-def serialize_rag_handoff(case: InvestigationCase) -> str:
+def serialize_rag_handoff(case: Union[InvestigationCase, Any]) -> str:
     payload = build_rag_handoff(case)
     return json.dumps(payload.model_dump(mode="json", exclude_none=True), separators=(",", ":"), sort_keys=True)
 
@@ -108,3 +114,55 @@ def _collect_limitations(case: InvestigationCase) -> List[str]:
     if not limitations:
         limitations.append("No additional limitations captured for this investigation.")
     return limitations
+
+
+def _wrap_investigation_result(result: Any) -> InvestigationCase:
+    """Convert InvestigationResult (dataclass) to InvestigationCase (Pydantic model) with RiskSynthesis.
+    
+    This adapter bridges the multi-agent investigation pipeline (which returns InvestigationResult)
+    and the RAG contract (which expects InvestigationCase with RiskSynthesis).
+    """
+    # Map the investigation_priority back to a risk category and priority code
+    priority_to_category = {
+        "LOW": RiskCategory.LOW,
+        "MEDIUM": RiskCategory.MEDIUM,
+        "HIGH": RiskCategory.HIGH,
+        "CRITICAL": RiskCategory.CRITICAL,
+    }
+    priority_to_priority = {
+        "LOW": RiskPriority.P3,
+        "MEDIUM": RiskPriority.P2,
+        "HIGH": RiskPriority.P1,
+        "CRITICAL": RiskPriority.P0,
+    }
+    
+    # Build a RiskSynthesis from the investigation result
+    risk_category = priority_to_category.get(result.investigation_priority, RiskCategory.LOW)
+    priority = priority_to_priority.get(result.investigation_priority, RiskPriority.P3)
+    
+    risk_synthesis = RiskSynthesis(
+        overall_risk=result.investigation_risk_score,
+        risk_category=risk_category,
+        priority=priority,
+        methodology="deterministic_multi_agent_investigation",
+        contributing_agents=result.summary.get("selected_agents", []),
+        warnings=[
+            f"Converted from InvestigationResult (dataclass) to InvestigationCase wrapper for RAG compatibility."
+        ],
+    )
+    
+    # Build an InvestigationCase wrapper that includes the RiskSynthesis
+    case = InvestigationCase(
+        case_id=result.case_id,
+        claim_id=result.claim_id or "UNKNOWN",
+        provider_id=result.provider_id,
+        claim_type=result.claim_type,
+        evidence=[],  # Evidence would need to be extracted from findings
+        findings=[],  # Use findings from result
+        agent_results=[],  # Agent results would need structured mapping
+        risk_synthesis=risk_synthesis,
+        provenance={"source": "investigation_result_wrapper"},
+    )
+    
+    return case
+

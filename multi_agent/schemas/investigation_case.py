@@ -16,3 +16,5 @@ class InvestigationCase:
     provider: Optional[ProviderContext] = None
     findings: List[Finding] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
+    llm_routing_plan: Optional[Dict[str, Any]] = None
+    llm_agent_context: Dict[str, Any] = field(default_factory=dict)

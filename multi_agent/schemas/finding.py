@@ -13,3 +13,5 @@ class Finding:
     description: str
     evidence: Dict[str, Any] = field(default_factory=dict)
     confidence: Optional[float] = None
+    narrative: Optional[str] = None
+    tool_results: Dict[str, Any] = field(default_factory=dict)

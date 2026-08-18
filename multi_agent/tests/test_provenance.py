@@ -363,13 +363,13 @@ class TestGenAIMetadata:
         """Can create GenAI metadata."""
         genai = GenAIMetadataBuilder.create(
             case_id="CASE-1",
-            model_name="llama-3.3-70b-versatile",
+            model_name="openai/gpt-oss-120b",
             status="generated",
             input_evidence_ids=["EV-001", "EV-002"],
         )
 
         assert genai.input_case_id == "CASE-1"
-        assert genai.model_name == "llama-3.3-70b-versatile"
+        assert genai.model_name == "openai/gpt-oss-120b"
         assert genai.provider == "Groq"
         assert genai.status == "generated"
         assert len(genai.input_evidence_ids) == 2
