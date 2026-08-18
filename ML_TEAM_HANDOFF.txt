@@ -1,0 +1,387 @@
+================================================================================
+EXPLAINABILITY TEAM HANDOFF — ML FEATURE LINEAGE INVESTIGATION RESULTS
+================================================================================
+
+Date: 2026-08-18
+Scope: Carrier and Inpatient claim-level explainability blocker resolution
+Status: BLOCKED (both claim types)
+
+================================================================================
+EXECUTIVE SUMMARY
+================================================================================
+
+The explainability team has completed a systematic investigation to recover
+and verify the feature lineage for Carrier and Inpatient claim-level models.
+
+Result: Both claim types remain BLOCKED because critical artifacts required
+to make SHAP explanations production-faithful are missing from the repository.
+
+- CARRIER: Feature matrix is present but reproducibility cannot be verified
+           (stored scores do not match recomputed model outputs)
+           
+- INPATIENT: Feature matrix is not persisted (only 6/49 features recoverable
+             from raw data; 43 features are completely missing)
+
+The root causes are artifact-specific, not model-specific. No model retraining
+or inference logic changes are required. The issue is strictly data lineage.
+
+================================================================================
+CARRIER CLAIMS — DETAILED FINDINGS
+================================================================================
+
+FEATURE MATRIX STATUS
+---------------------
+✓ Location: data/raw/carrier_claim_features_FINAL.csv
+✓ Claims: 6,665
+✓ Features: 38/38 present and readable
+✓ Feature names: All match persisted model contract in feature_columns.pkl
+
+EXAMPLE FEATURES:
+  1. num_lines_per_claim
+  2. min_line_num / max_line_num / mean_line_num
+  3. CLM_PMT_AMT_first (first payment amount)
+  4. CARR_CLM_PRMRY_PYR_PD_AMT_first (carrier primary payer amount)
+  5-11. Various line-level aggregations (sum, mean, median, max, std)
+  12-23. Claim-level charge/payment aggregations (submitted, allowed, deductible)
+  24. HCPCS_CD_nunique (unique service codes)
+  25-29. Claim duration, diagnosis codes, zero-payment lines, year/month
+  30-35. Derived ratios (payment-to-charge, allowed-to-submitted, provider-to-allowed)
+  36. bene_total_claims_in_dataset (beneficiary claim volume context)
+  37-38. Provider and access indicators (PRTCPTNG_IND_CD, HPSA_SCRCTY_IND_CD)
+
+REPRODUCIBILITY TEST RESULTS
+-----------------------------
+Persisted Artifacts:
+  - Scaler: models/claims/carrier/scaler.pkl (StandardScaler, n_features_in_=38)
+  - IsolationForest: models/claims/carrier/isolation_forest.pkl
+  - Feature columns: models/claims/carrier/feature_columns.pkl
+
+Test Setup:
+  - Loaded 6,665 Carrier claims with 38 features
+  - Applied StandardScaler preprocessing (same as persisted scaler)
+  - Computed IsolationForest.score_samples() (model output, range: -0.64 to -0.52)
+  - Retrieved stored IF_score from unified file (range: 0.0 to 1.0)
+
+Results:
+  - IsolationForest.score_samples() range: [-0.640086, -0.522165]
+  - Stored IF_score range: [0.000000, 1.000000]
+  - Correlation (raw scores → stored): -0.036943 (essentially random)
+  - Correlation (min-max inversion → stored): 0.036943 (essentially random)
+  - Correlation (rank percentile → stored): undefined (different value ranges)
+
+Interpretation:
+  The stored IF_score values do NOT correlate with IsolationForest.score_samples()
+  computed from the persisted model on the persisted features. This indicates:
+  
+  Hypothesis A: Different Feature Pipeline
+    - The stored IF_score may have been computed from a different feature set
+    - Feature engineering logic may have changed between stored scores and current artifacts
+    - IMPACT: Cannot prove current feature matrix → stored score lineage
+    
+  Hypothesis B: Different Model Version
+    - The stored IF_score may have come from a different IsolationForest training run
+    - Model artifacts may have been updated without corresponding score re-computation
+    - IMPACT: Cannot prove current model → stored score lineage
+    
+  Hypothesis C: Unknown Transformation
+    - The stored IF_score may be a normalized/transformed version of the raw model output
+    - Transformation logic (normalization, ranking, binning, etc.) is not documented
+    - IMPACT: Cannot determine transformation from model output to stored score
+    
+  Conclusion: The current repository artifacts (feature matrix + scaler + model)
+  do not constitute a complete, verifiable lineage for the stored Carrier risk scores.
+
+CARRIER STATUS: BLOCKED
+=======================
+Code: BLOCKED_MISSING_FEATURE_ARTIFACT
+Reason: Feature → Score Lineage Unverified
+
+What we HAVE:
+  ✓ Original 38-feature matrix (data/raw/carrier_claim_features_FINAL.csv)
+  ✓ All features present and readable
+  ✓ StandardScaler artifact (models/claims/carrier/scaler.pkl)
+  ✓ IsolationForest artifact (models/claims/carrier/isolation_forest.pkl)
+  ✓ Feature column order (models/claims/carrier/feature_columns.pkl)
+  ✓ Unified risk scores with 6,665 Carrier claims
+
+What we DON'T HAVE:
+  ✗ Proof that current features + scaler + model reproduce current stored scores
+  ✗ Score transformation logic (raw model output → normalized 0-1 IF_score)
+  ✗ Documentation of any score normalization, ranking, or binning applied
+
+IMPACT: SHAP would explain the IsolationForest tree output, but cannot be
+mapped to the stored Carrier risk scores without proving the lineage.
+
+================================================================================
+INPATIENT CLAIMS — DETAILED FINDINGS
+================================================================================
+
+FEATURE MATRIX STATUS
+---------------------
+✗ Pre-computed matrix: NOT FOUND in repository
+? Persisted model expects: 49 features (feature_columns.pkl)
+? Raw data available: data/raw/inpatient_CLEANED_v2.csv (58,066 rows, 20,867 claims)
+
+INPATIENT FEATURES (49 total):
+  1-9. Claim-level counts (lines, HCPCS codes, diagnosis/procedure codes, flags)
+  10-19. Claim-level financial (charge, payment, deductible, coinsurance, avg/daily)
+  20-23. Claim-level temporal (duration, admit-to-thru, same-day, month/quarter/year)
+  24-31. Beneficiary-level aggregates (total/unique claims, averages, recency)
+  32-41. Provider-level aggregates (claims, beneficiaries, payment, charge, utilization)
+  42-49. Risk flags (high line count, diagnosis, procedure, utilization, payment, volume, stay)
+
+FEATURE MATRIX RECOVERY TEST
+-----------------------------
+Attempted to derive from raw data (data/raw/inpatient_CLEANED_v2.csv):
+
+Successfully derived (6 features):
+  ✓ claim_line_count
+  ✓ unique_hcpcs_count
+  ✓ unique_diagnosis_code_count
+  ✓ total_diagnosis_code_count
+  ✓ unique_procedure_code_count
+  ✓ total_procedure_code_count
+
+Cannot derive from raw (43 features, 87.8% missing):
+  ✗ admit_year, admit_month, admit_quarter
+  ✗ admit_to_thru_days, is_same_day_stay, procedure_code_diversity_ratio
+  ✗ average_line_payment, average_line_charge
+  ✗ unique_procedure_date_count
+  ✗ bene_total_claims, bene_unique_claims, bene_avg_line_count,
+    bene_avg_claim_duration, bene_total_payment, bene_avg_payment,
+    bene_days_since_first_claim, bene_recent_claims_count
+  ✗ provider_total_claims, provider_unique_beneficiaries, provider_total_payment,
+    provider_avg_payment, provider_total_charge, provider_avg_charge,
+    provider_avg_utilization_days, provider_total_utilization_days,
+    provider_payment_per_beneficiary, provider_claims_per_beneficiary
+  ✗ high_claim_line_count_flag, high_diagnosis_count_flag,
+    high_procedure_count_flag, high_utilization_flag, high_claim_payment_flag,
+    high_provider_claim_volume_flag, high_provider_payment_flag, long_stay_flag
+
+MISSING ARTIFACTS
+-----------------
+1. Original 49-Feature CSV Matrix
+   - NOT stored in repository as persisted CSV
+   - NOT reconstructible from raw data (only 12% derivable)
+   - LOCATION TO CHECK: ML team's training environment, git history, data warehouse
+   
+2. Feature Engineering / Aggregation Code
+   - NO Python script provided for generating the 49 features from raw claims
+   - NO documentation of beneficiary/provider context window (1 year? lifetime? specific year?)
+   - NO claim-to-beneficiary mapping logic
+   - NO claim-to-provider context aggregation logic
+   
+3. Feature Definitions
+   - NO specification for temporal window (claim date range for beneficiary/provider aggregates)
+   - NO imputation/handling rules for missing claim data
+   - NO threshold definitions for the risk flags
+   
+INPATIENT STATUS: BLOCKED
+==========================
+Code: BLOCKED_MISSING_FEATURE_ARTIFACT
+Reason: Original 49-Feature Matrix Not Persisted
+
+What we HAVE:
+  ✓ Model artifact (models/claims/inpatient/isolation_forest.pkl)
+  ✓ Scaler artifact (models/claims/inpatient/scaler.pkl)
+  ✓ Feature column order (models/claims/inpatient/feature_columns.pkl)
+  ✓ Raw claim data (data/raw/inpatient_CLEANED_v2.csv)
+  ✓ Stored risk scores (models/claims/inpatient/inpatient_final_risk_scores.csv)
+  ✓ 20,867 Inpatient claims for reference
+
+What we DON'T HAVE:
+  ✗ Pre-computed 49-feature matrix (CSV or parquet)
+  ✗ Feature engineering code to generate 49 features from raw claims
+  ✗ Beneficiary aggregation context specifications
+  ✗ Provider aggregation context specifications
+  ✗ Exact feature definitions (thresholds, windows, imputation rules)
+  ✗ 87.8% of the features cannot be reconstructed from available data
+
+IMPACT: Cannot generate the original 49-feature vector for any given claim.
+Without the feature vector, SHAP cannot explain the model output. Even if
+the model could generate a prediction, there is no verifiable feature lineage.
+
+================================================================================
+ML TEAM HANDOFF — EXACT ARTIFACTS NEEDED
+================================================================================
+
+TO UNBLOCK CARRIER EXPLAINABILITY
+==================================
+
+Option A (Recommended): Provide Score Transformation Logic
+  
+  Provide the exact transformation function:
+    raw_model_output = IsolationForest.score_samples(X_scaled)
+    stored_IF_score = transform(raw_model_output) → [0, 1] range
+  
+  Examples:
+    - Min-max normalization: (ss_max - ss) / (ss_max - ss_min)
+    - Percentile rank: rank(ss) / len(ss) * 100
+    - Z-score to percentile: norm_cdf((ss - mean) / std) * 100
+    - Custom binning: (number of decision tree nodes crossed) / ...
+  
+  Deliverables:
+    1. Mathematical formula or pseudocode
+    2. Exact parameters (min, max, mean, std if applicable)
+    3. Validation: show that transform(score_samples) ≈ stored_IF_score
+       on at least 10 sample claims from the validation set
+  
+Option B (If features changed): Provide Original Feature Matrix
+  
+  Provide the 38-feature matrix that was actually used to train/score:
+    - CSV with 6,665 Carrier claims and the exact 38 features
+    - Column order must match feature_columns.pkl order
+    - Prove that score_samples(scaler.transform(matrix)) ≈ stored_IF_score
+  
+TO UNBLOCK INPATIENT EXPLAINABILITY
+====================================
+
+Mandatory: Provide Complete Feature Matrix
+  
+  Provide the 49-feature matrix used to train the Inpatient model:
+    - CSV or parquet format with 20,867 Inpatient claims
+    - 49 columns in the exact order of feature_columns.pkl
+    - One row per claim_id matching inpatient_final_risk_scores.csv
+    - Verify: scaler.transform(matrix) is ready for model inference
+  
+AND/OR Provide Feature Engineering Code
+  
+  Provide the exact Python function:
+    def build_inpatient_features(raw_claims_df, reference_date=None):
+        '''Generate 49-feature vector for a single or batch of inpatient claims.
+        
+        Args:
+            raw_claims_df: DataFrame with columns matching data/raw/inpatient_CLEANED_v2.csv
+            reference_date: Optional claim processing date for context windows
+            
+        Returns:
+            DataFrame with columns matching feature_columns.pkl order
+        '''
+  
+  This function must:
+    1. Aggregate raw claim lines to claim level
+    2. Compute beneficiary context (time window: ?)
+    3. Compute provider context (time window: ?)
+    4. Define all 49 features with exact formulas
+    5. Return a (n_claims, 49) feature matrix
+  
+  Deliverables:
+    1. Python implementation of feature engineering
+    2. Documentation of all context windows and thresholds
+    3. Proof that function(raw_data) matches stored feature matrix on 10+ samples
+    4. Examples showing exact handling of edge cases (zero codes, missing dates, etc.)
+
+================================================================================
+VERIFICATION PROTOCOL
+================================================================================
+
+For both Carrier and Inpatient, verification requires:
+
+1. Reproducibility Check
+   - Load the provided artifact (transformation code or feature matrix)
+   - Apply to 5-10 random claims from the validation set
+   - Verify output matches stored scores / features within 0.001% tolerance
+   - Report: ✓ Pass or ✗ Fail for each claim
+   
+2. Lineage Validation
+   - Confirm the artifact is from the same training/scoring run as current model
+   - Confirm no model retraining occurred since scoring
+   - Confirm feature/transformation is production-identical to what's deployed
+   
+3. Documentation
+   - One-paragraph summary of the artifact's origin
+   - Date created / used / validated
+   - Which model version this is associated with
+   - Any known limitations or edge cases
+
+================================================================================
+EXPLAINABILITY READINESS CRITERIA
+================================================================================
+
+Once artifacts are provided, the explainability team will:
+
+✓ READY criteria:
+  1. Feature/transformation lineage is verifiable (corr > 0.99)
+  2. No model retraining is required
+  3. SHAP TreeExplainer output is mathematically consistent
+  4. Tests pass: test_claims_explainability.py (21 tests)
+  5. Explainability schema is production-safe (no fabricated values)
+  6. Documentation is complete and accurate
+
+✗ BLOCKED (current state):
+  1. Cannot prove feature → model output lineage
+  2. Cannot generate SHAP without verified feature vector
+  3. Explainability layer returns explicit BLOCKED_MISSING_FEATURE_ARTIFACT
+  4. Tests expect artifacts to be provided by ML team
+
+================================================================================
+SUMMARY OF REPOSITORY ARTIFACTS
+================================================================================
+
+PRESENT IN REPO
+---------------
+✓ Carrier feature matrix: data/raw/carrier_claim_features_FINAL.csv (6,665 claims)
+✓ Carrier scaler: models/claims/carrier/scaler.pkl
+✓ Carrier IsolationForest: models/claims/carrier/isolation_forest.pkl
+✓ Carrier feature order: models/claims/carrier/feature_columns.pkl (38 features)
+✓ Carrier risk scores: models/claims/unified_claim_risk_with_provider.csv (6,665 rows)
+
+✓ Inpatient scaler: models/claims/inpatient/scaler.pkl
+✓ Inpatient IsolationForest: models/claims/inpatient/isolation_forest.pkl
+✓ Inpatient feature order: models/claims/inpatient/feature_columns.pkl (49 features)
+✓ Inpatient risk scores: models/claims/inpatient/inpatient_final_risk_scores.csv (20,867 rows)
+✓ Inpatient raw data: data/raw/inpatient_CLEANED_v2.csv (raw claim lines)
+
+MISSING FROM REPO
+-----------------
+✗ Carrier: Proof that features + scaler + model → stored_IF_score
+✗ Carrier: Score transformation logic (if normalization applied)
+✗ Inpatient: Pre-computed 49-feature matrix CSV
+✗ Inpatient: Feature engineering code
+✗ Inpatient: Beneficiary/provider aggregation specifications
+✗ Both: Exact feature definitions and thresholds
+
+================================================================================
+INVESTIGATION ARTIFACTS
+================================================================================
+
+Repository Location:
+  - Investigation script: ml_feature_lineage_report.py
+  - Explainability implementation: explainability/claims_explainer_prod.py
+  - Tests (passing): tests/test_claims_explainability.py (21 tests)
+  - Audit docs: docs/claims_explainability.md
+  - Handoff template: docs/explainability_handoff.md
+
+Test Results:
+  - Provider explainability: ✓ READY (validated and deterministic)
+  - Outpatient explainability: ✓ READY (validated and deterministic)
+  - Carrier explainability: ✗ BLOCKED (feature lineage unverified)
+  - Inpatient explainability: ✗ BLOCKED (feature matrix missing)
+
+================================================================================
+NEXT STEPS
+================================================================================
+
+For ML Team:
+  1. Locate the original Carrier feature → score transformation logic
+  2. Locate the original Inpatient 49-feature engineering code or matrix
+  3. Provide validation on 5-10 sample claims
+  4. Return artifacts to the explainability team
+
+For Explainability Team (post-artifact delivery):
+  1. Validate provided artifacts against real claims
+  2. Update models/claims/carrier/carrier_transform.pkl or equivalent
+  3. Update models/claims/inpatient/inpatient_features.pkl or equivalent
+  4. Re-run reproducibility tests
+  5. Deploy updated claims_explainer_prod.py with READY status for all types
+  6. Document final validation in docs/claims_explainability.md
+
+Do NOT:
+  ✗ Retrain any models
+  ✗ Fabricate missing features
+  ✗ Invent transformation formulas
+  ✗ Mark explainability as READY without artifacts
+
+================================================================================
+END HANDOFF
+================================================================================
