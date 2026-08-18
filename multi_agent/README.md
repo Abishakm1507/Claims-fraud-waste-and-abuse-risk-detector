@@ -126,7 +126,39 @@ It combines:
 
 ------------------------------------------------------------------------
 
-# 3. Core Design Principles
+# 3. Current Architecture (Phase 3/4 Hardening)
+
+The module follows a two-layer pattern:
+
+1. Deterministic case selection and evidence collection
+2. Optional LLM guidance for rationale, synthesis, and narrative explanation
+
+The orchestrator first computes a routing decision using deterministic rules and then, when enabled, calls a redacted LLM planner to add a per-agent rationale. That rationale is passed to each specialist as a `focus_hint`, but it is never allowed to alter the frozen risk formula.
+
+```python
+routing = self._select_agents(case)
+if self.enable_llm_agent_reasoning:
+    llm_plan = self._llm_plan(case)
+    routing.update(llm_plan)
+
+for agent_name in self.AGENT_ORDER:
+    route = routing[agent_name]
+    result = self.billing_agent.investigate_with_llm(
+        case,
+        focus_hint=route.get("rationale") or route.get("reason"),
+    )
+```
+
+Critical hardening decisions:
+
+- Redaction is applied before every LLM call for `claim_id`, `provider_id`, `provider_npi`, and `bene_id` using `redact_for_llm()`.
+- Grounding checks enforce that agent narratives only reference numbers that appear in tool outputs.
+- Determinism checks confirm that `investigation_risk_score` and priority remain identical whether LLM reasoning is enabled or disabled.
+- Agent execution is parallelized for the independent billing / peer / clinical stages after the plan is fixed, while synthesis still occurs once all results are assembled.
+
+------------------------------------------------------------------------
+
+# 4. Core Design Principles
 
 ## 3.1 Deterministic first
 
@@ -1241,7 +1273,306 @@ Orchestrator
 
 ------------------------------------------------------------------------
 
-# 22. Maintenance Rule
+# 22. Running the Multi-Agent System
+
+## Prerequisites
+
+- Python 3.10.11+
+- Dependencies: `pip install -r requirements.txt`
+- Environment variables configured (see below)
+- Real claim and provider data loaded via ETL pipeline
+
+## Environment Setup
+
+```bash
+# Set PYTHONPATH to include the workspace root
+export PYTHONPATH="."
+
+# Configure Groq API (optional, for LLM-powered explanations)
+export GROQ_API_KEY="your-groq-api-key"
+export GROQ_MODEL="openai/gpt-oss-120b"
+
+# Optional: Disable LLM reasoning for faster deterministic mode
+export ENABLE_LLM_AGENT_REASONING="false"
+export ENABLE_GENAI_EXPLANATION="false"
+```
+
+## Installation
+
+```bash
+# Install required packages
+pip install -r requirements.txt
+
+# Optional: Install Groq SDK for live LLM integration
+pip install groq
+```
+
+## Basic Usage
+
+### 1. Investigate a Single Claim
+
+```python
+from multi_agent.orchestrator import Orchestrator
+
+# Create orchestrator instance
+orchestrator = Orchestrator(
+    enable_genai_explanation=True,      # Enable Groq explanations
+    enable_llm_agent_reasoning=True     # Enable LLM-backed agent reasoning
+)
+
+# Investigate a claim by claim_id
+result = orchestrator.investigate_claim(claim_id="YOUR_CLAIM_ID")
+
+# Access investigation results
+print(f"Case ID: {result.case_id}")
+print(f"Risk Score: {result.investigation_risk_score}")
+print(f"Priority: {result.investigation_priority}")
+print(f"Findings: {len(result.findings)}")
+print(f"Explanation: {result.explanation}")
+
+# Access findings by agent
+print(f"Billing Findings: {result.findings_by_agent['billing']}")
+print(f"Peer Findings: {result.findings_by_agent['peer']}")
+print(f"Clinical Findings: {result.findings_by_agent['clinical_rule']}")
+```
+
+### 2. Investigate a Provider
+
+```python
+from multi_agent.orchestrator import Orchestrator
+
+orchestrator = Orchestrator()
+
+# Investigate a provider by NPI
+result = orchestrator.investigate_provider(npi=1003569997)
+
+print(f"Provider NPI: {result.provider_npi}")
+print(f"Provider Risk Score: {result.provider_risk_score}")
+print(f"Investigation Risk: {result.investigation_risk_score}")
+print(f"Peer Agent Findings: {result.findings_by_agent['peer']}")
+```
+
+### 3. Use the Orchestrator Directly
+
+```python
+from multi_agent.orchestrator import Orchestrator
+from multi_agent.data.claim_store import ClaimStore
+from multi_agent.schemas.investigation_case import InvestigationCase
+
+# Load claim data
+claim_store = ClaimStore()
+claim = claim_store.get_claim(claim_id="YOUR_CLAIM_ID")
+
+# Create investigation case
+case = InvestigationCase(
+    case_id=f"case-{claim.claim_id}",
+    claim_id=claim.claim_id,
+    claim=claim
+)
+
+# Run investigation
+orchestrator = Orchestrator()
+result = orchestrator.investigate(case)
+
+print(f"Investigation Complete: {result.case_id}")
+print(f"Total Findings: {result.summary.get('total_findings')}")
+print(f"Selected Agents: {result.summary.get('selected_agents')}")
+```
+
+### 4. Build RAG Handoff
+
+```python
+from multi_agent.orchestrator import Orchestrator
+from multi_agent.rag.handoff import build_rag_handoff
+
+# Run investigation
+orchestrator = Orchestrator(enable_genai_explanation=False)
+result = orchestrator.investigate_claim(claim_id="YOUR_CLAIM_ID")
+
+# Convert to RAG handoff contract
+rag_handoff = build_rag_handoff(result)
+
+print(f"RAG Case ID: {rag_handoff.case.case_id}")
+print(f"Risk Synthesis: {rag_handoff.risk_synthesis.overall_risk}")
+print(f"Findings Count: {len(rag_handoff.findings)}")
+
+# Serialize to JSON for downstream consumption
+import json
+rag_json = json.dumps(
+    rag_handoff.model_dump(mode='json', exclude_none=True),
+    indent=2
+)
+```
+
+## Running Tests
+
+### All Multi-Agent Tests
+
+```bash
+cd /path/to/workspace
+export PYTHONPATH="."
+
+# Run full test suite
+python -m pytest multi_agent/tests -v
+
+# Run with coverage
+python -m pytest multi_agent/tests --cov=multi_agent --cov-report=html
+
+# Run specific test file
+python -m pytest multi_agent/tests/test_end_to_end.py -v
+
+# Run specific test
+python -m pytest multi_agent/tests/test_end_to_end.py::test_full_claim_pipeline_end_to_end -v
+```
+
+### Test Categories
+
+```bash
+# Agent-specific tests
+python -m pytest multi_agent/tests/test_billing_agent.py -v
+python -m pytest multi_agent/tests/test_peer_agent.py -v
+python -m pytest multi_agent/tests/test_clinical_rule_agent.py -v
+
+# Orchestrator tests
+python -m pytest multi_agent/tests/test_orchestrator.py -v
+
+# End-to-end tests
+python -m pytest multi_agent/tests/test_end_to_end.py -v
+
+# Contract validation tests
+python -m pytest multi_agent/tests/test_investigation_contract_v1.py -v
+python -m pytest multi_agent/tests/test_data_contract_validation_v1.py -v
+
+# Evidence and provenance tests
+python -m pytest multi_agent/tests/test_evidence_enrichment.py -v
+python -m pytest multi_agent/tests/test_provenance.py -v
+```
+
+### Quick Test Verification
+
+```bash
+# Verify agent removal (should return 0 results)
+grep -r "claim_agent\|ClaimAgent" multi_agent/ --include="*.py"
+
+# Verify architecture (should show 3 agents)
+grep "AGENT_ORDER" multi_agent/orchestrator.py
+
+# Run quick sanity check
+python -c "
+from multi_agent.orchestrator import Orchestrator
+o = Orchestrator()
+print('✓ Orchestrator initialized')
+print(f'✓ Agent order: {o.AGENT_ORDER}')
+"
+```
+
+## Running the Investigation Demo Script
+
+```bash
+# Run the demo investigation script
+python multi_agent/scripts/run_investigation_demo.py --claim-id YOUR_CLAIM_ID
+
+# With provider investigation
+python multi_agent/scripts/run_investigation_demo.py --npi 1003569997
+
+# With LLM explanations enabled
+ENABLE_GENAI_EXPLANATION=true python multi_agent/scripts/run_investigation_demo.py --claim-id YOUR_CLAIM_ID
+```
+
+## Advanced Configuration
+
+### Disable LLM Reasoning (Deterministic Mode)
+
+```python
+from multi_agent.orchestrator import Orchestrator
+
+# Run purely deterministic investigation (no LLM)
+orchestrator = Orchestrator(
+    enable_genai_explanation=False,
+    enable_llm_agent_reasoning=False
+)
+
+result = orchestrator.investigate_claim(claim_id="YOUR_CLAIM_ID")
+# Explanation will be generated from deterministic rules only
+```
+
+### Custom Agent Configuration
+
+```python
+from multi_agent.orchestrator import Orchestrator
+from multi_agent.agents.billing_agent import BillingAgent
+from multi_agent.data.claim_store import ClaimStore
+
+# Create custom agent instances
+claim_store = ClaimStore()
+custom_billing_agent = BillingAgent()
+
+# Create orchestrator with custom agents
+orchestrator = Orchestrator(
+    claim_store=claim_store,
+    billing_agent=custom_billing_agent,
+    enable_genai_explanation=True
+)
+
+result = orchestrator.investigate_claim(claim_id="YOUR_CLAIM_ID")
+```
+
+### Latency and Timing
+
+```python
+import time
+from multi_agent.orchestrator import Orchestrator
+
+orchestrator = Orchestrator(enable_genai_explanation=True)
+
+start = time.perf_counter()
+result = orchestrator.investigate_claim(claim_id="YOUR_CLAIM_ID")
+elapsed = time.perf_counter() - start
+
+print(f"Investigation time: {elapsed:.2f}s")
+print(f"Orchestrator total: {result.diagnostic_timing.get('orchestrator_total_seconds'):.2f}s")
+print(f"Explanation status: {result.summary.get('explanation_status')}")
+print(f"Selected agents: {result.summary.get('selected_agents')}")
+```
+
+## Troubleshooting
+
+### Common Issues
+
+**Q: Investigation returns no findings**
+- Normal for low-risk claims. Check `selected_agents` in summary to see which agents ran.
+- Verify claim data is loaded: `claim_store.get_claim(claim_id)` should not be None.
+
+**Q: Groq explanation unavailable**
+- Check GROQ_API_KEY is set: `echo $GROQ_API_KEY`
+- Verify model is available in your account
+- Set `enable_genai_explanation=False` to use deterministic mode
+
+**Q: Tests timeout**
+- Tests include real data loads and parallel execution. May take 5-10 minutes.
+- Run subset: `python -m pytest multi_agent/tests/test_orchestrator.py -v`
+
+**Q: ImportError for multi_agent modules**
+- Ensure PYTHONPATH is set: `export PYTHONPATH="."`
+- Run from workspace root directory
+
+### Enabling Debug Logging
+
+```python
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger('multi_agent')
+logger.setLevel(logging.DEBUG)
+
+# Now run investigation with debug output
+from multi_agent.orchestrator import Orchestrator
+result = Orchestrator().investigate_claim(claim_id="YOUR_CLAIM_ID")
+```
+
+------------------------------------------------------------------------
+
+# 23. Maintenance Rule
 
 Any future change to the module should update:
 

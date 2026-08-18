@@ -6,6 +6,7 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence
 
 from multi_agent.schemas.finding import Finding
 from multi_agent.schemas.investigation_case import InvestigationCase
+from multi_agent.utils.redaction import redact_for_llm
 
 SEVERITY_WEIGHTS = {
     "INFO": 0,
@@ -51,9 +52,15 @@ class InvestigationResult:
     investigation_priority: str = "LOW"
     strongest_evidence: List[Finding] = field(default_factory=list)
     explanation: str = ""
+    cross_validation_summary: str = ""
+    conflicts: List[str] = field(default_factory=list)
+    synthesis_narrative: str = ""
+    agent_narratives: Dict[str, str] = field(default_factory=dict)
+    llm_reasoning: Dict[str, Any] = field(default_factory=dict)
     status: str = "OPEN"
     agent_errors: Dict[str, str] = field(default_factory=dict)
     evidence_quality: Dict[str, int] = field(default_factory=dict)
+    diagnostic_timing: Dict[str, float] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -81,6 +88,11 @@ class InvestigationResult:
             "investigation_priority": self.investigation_priority,
             "strongest_evidence": [f.__dict__ for f in self.strongest_evidence],
             "explanation": self.explanation,
+            "cross_validation_summary": self.cross_validation_summary,
+            "conflicts": self.conflicts,
+            "synthesis_narrative": self.synthesis_narrative,
+            "agent_narratives": self.agent_narratives,
+            "llm_reasoning": self.llm_reasoning,
             "status": self.status,
             "agent_errors": self.agent_errors,
             "evidence_quality": self.evidence_quality,
@@ -104,6 +116,8 @@ class Synthesis:
         peer_findings: Optional[Sequence[Finding]] = None,
         clinical_rule_findings: Optional[Sequence[Finding]] = None,
         agent_errors: Optional[Dict[str, str]] = None,
+        agent_narratives: Optional[Dict[str, str]] = None,
+        tools_by_agent: Optional[Dict[str, list]] = None,
     ) -> InvestigationResult:
         if case is None:
             case = InvestigationCase(case_id="UNKNOWN", claim_id="UNKNOWN")
@@ -131,6 +145,8 @@ class Synthesis:
         strongest_evidence = self._strongest_evidence(all_findings)
         explanation = self._build_explanation(all_findings, findings_by_agent)
         evidence_quality = self._evidence_quality(all_findings)
+        agent_narratives = agent_narratives or self._collect_agent_narratives(billing, peer, clinical)
+        synthesis_narrative, cross_validation_summary, conflicts = self._llm_synthesis_summary(case, findings_by_agent, agent_narratives)
 
         result = InvestigationResult(
             case_id=case.case_id,
@@ -156,11 +172,128 @@ class Synthesis:
             investigation_priority=investigation_priority,
             strongest_evidence=strongest_evidence,
             explanation=explanation,
+            cross_validation_summary=cross_validation_summary,
+            conflicts=conflicts,
+            synthesis_narrative=synthesis_narrative,
+            agent_narratives=agent_narratives,
+            llm_reasoning={"status": "generated" if synthesis_narrative else "fallback", "conflicts": conflicts},
             status=status,
             agent_errors=(agent_errors or {}),
             evidence_quality=evidence_quality,
         )
         return result
+
+    @staticmethod
+    def _collect_agent_narratives(billing: Sequence[Finding], peer: Sequence[Finding], clinical: Sequence[Finding]) -> Dict[str, str]:
+        narratives: Dict[str, str] = {}
+        for agent_name, findings in {"billing": billing, "peer": peer, "clinical_rule": clinical}.items():
+            candidate = None
+            for item in findings:
+                if hasattr(item, "agent_narrative"):
+                    candidate = getattr(item, "agent_narrative")
+                    break
+            if candidate:
+                narratives[agent_name] = candidate
+        return narratives
+
+    @staticmethod
+    def _detect_agent_conflicts(findings_by_agent: Dict[str, List[Finding]]) -> List[str]:
+        """Detect disagreements between agents' concern levels.
+
+        Compares the maximum severity across agents to identify conflicts.
+        E.g., Billing HIGH, Peer MEDIUM, Clinical NONE → conflict only if >1 agent finds something AND they disagree.
+        """
+        agent_concerns = {}
+        agents_with_findings = 0
+        
+        for agent_name, findings in findings_by_agent.items():
+            if not findings:
+                agent_concerns[agent_name] = "NONE"
+            else:
+                agents_with_findings += 1
+                severities = [f.severity.upper() for f in findings]
+                max_severity = max(severities, key=lambda s: SEVERITY_ORDER.index(s) if s in SEVERITY_ORDER else -1)
+                agent_concerns[agent_name] = max_severity
+
+        conflicts = []
+        
+        # Only report conflicts if multiple agents found something AND they disagree
+        if agents_with_findings < 2:
+            return conflicts  # No conflict if 0 or 1 agent found something
+        
+        concern_levels = [c for c in agent_concerns.values() if c != "NONE"]
+        unique_levels = set(concern_levels)
+        
+        # If all agents that found something agree on the same severity level, no conflict
+        if len(unique_levels) <= 1:
+            return conflicts
+        
+        # There's a disagreement between agents
+        high_agents = [name for name, concern in agent_concerns.items() if concern in {"HIGH", "CRITICAL"}]
+        medium_agents = [name for name, concern in agent_concerns.items() if concern == "MEDIUM"]
+        low_agents = [name for name, concern in agent_concerns.items() if concern == "LOW"]
+        
+        if high_agents and (medium_agents or low_agents):
+            conflicting_agents = medium_agents + low_agents
+            conflicts.append(
+                f"Conflict: {', '.join(high_agents)} flagged HIGH/CRITICAL concern, but {', '.join(conflicting_agents)} reported lower severity."
+            )
+        elif medium_agents and low_agents:
+            conflicts.append(
+                f"Conflict: {', '.join(medium_agents)} flagged MEDIUM concern, but {', '.join(low_agents)} flagged LOW severity."
+            )
+
+        return conflicts
+
+
+    @staticmethod
+    def _llm_synthesis_summary(case: Optional[InvestigationCase], findings_by_agent: Dict[str, List[Finding]], agent_narratives: Dict[str, str]) -> tuple[str, str, List[str]]:
+        fallback = "The deterministic evidence remains the authority. The investigation is guided by the risk score and supporting findings, and further review is recommended rather than a confirmed fraud conclusion."
+
+        # Detect conflicts between agents
+        conflicts = Synthesis._detect_agent_conflicts(findings_by_agent)
+
+        if not agent_narratives:
+            return fallback, fallback, conflicts or ["No cross-agent narrative was available; deterministic evidence remains the source of truth."]
+
+        try:
+            from multi_agent.services.explanation_service import InvestigationExplanationService
+
+            service = InvestigationExplanationService(enabled=True)
+
+            # Build cross-validation context
+            agent_concerns = {}
+            for agent_name, findings in findings_by_agent.items():
+                if not findings:
+                    agent_concerns[agent_name] = "NONE"
+                else:
+                    severities = [f.severity.upper() for f in findings]
+                    max_severity = max(severities, key=lambda s: SEVERITY_ORDER.index(s) if s in SEVERITY_ORDER else -1)
+                    agent_concerns[agent_name] = max_severity
+
+            context = {
+                "case_id": getattr(case, "case_id", "UNKNOWN"),
+                "claim_id": getattr(case, "claim_id", "UNKNOWN"),
+                "agent_narratives": agent_narratives,
+                "agent_concerns": agent_concerns,
+                "conflicts": conflicts,
+                "findings_by_agent": {k: [f.rule for f in v] for k, v in findings_by_agent.items()},
+            }
+            # Redact PHI/PII before sending to LLM (HIPAA compliance)
+            context = redact_for_llm(context)
+
+            response = service.generate_structured_reasoning(
+                task_name="synthesis",
+                context=context,
+                fallback=fallback,
+            )
+            narrative = str(response.get("narrative") or fallback)
+            summary = str(response.get("cross_validation_summary") or narrative)
+            return narrative, summary, conflicts or []
+        except Exception:
+            # Fallback to deterministic cross-validation
+            summary = "Deterministic evidence from independent agents was prioritized; cross-agent synthesis used only factual numerical evidence."
+            return fallback, summary, conflicts or ["Literal evidence was prioritized over speculative cross-agent conclusions."]
 
     @staticmethod
     def _safe_list(items: Optional[Sequence[Finding]]) -> List[Finding]:

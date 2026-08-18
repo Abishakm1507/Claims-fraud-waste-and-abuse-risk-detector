@@ -8,7 +8,7 @@ import pandas as pd
 from multi_agent.schemas.claim_context import ClaimContext, EvidenceBundle
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-DEFAULT_CLAIM_CSV = PROJECT_ROOT / "data" / "claims" / "final_unified_claim_risk.csv"
+DEFAULT_CLAIM_CSV = PROJECT_ROOT / "models" / "claims"
 
 
 class ClaimStore:
@@ -19,7 +19,7 @@ class ClaimStore:
         if not csv_path.exists():
             raise FileNotFoundError(f"Claim output not found: {csv_path}")
         self.csv_path = csv_path
-        self._df = pd.read_csv(csv_path, low_memory=False)
+        self._df = self._read_claims(csv_path)
         self._by_claim_id: Dict[str, pd.Series] = {}
         self._by_provider: Dict[str, List[str]] = {}
         self._by_beneficiary: Dict[str, List[str]] = {}
@@ -36,6 +36,63 @@ class ClaimStore:
                 self._by_provider.setdefault(key, []).append(claim_id)
             bene_id = self._coerce_text(row.get("CLAIM_ID")) or claim_id
             self._by_beneficiary.setdefault(bene_id, []).append(claim_id)
+
+    @staticmethod
+    def _read_claims(csv_path: Path) -> pd.DataFrame:
+        if csv_path.is_dir():
+            frames = []
+            for type_name in ("carrier", "inpatient", "outpatient"):
+                path = csv_path / type_name / f"{type_name}_final_risk_scores.csv"
+                if not path.exists():
+                    continue
+                df = pd.read_csv(path, low_memory=False).copy()
+                if type_name == "carrier":
+                    df["CLAIM_ID"] = df.get("CLM_ID")
+                    df["PROVIDER_ID"] = df.get("CARR_CLM_BLG_NPI_NUM_first")
+                    df["PROVIDER_ID_TYPE"] = "NPI"
+                    df["CLAIM_TYPE"] = "CARRIER"
+                    df["CLAIM_RISK_SCORE"] = df.get("carrier_ensemble_score")
+                    df["FINAL_RISK_LEVEL"] = df.get("carrier_risk_band")
+                    df["FINAL_RISK_PRIORITY"] = df.get("carrier_risk_rank")
+                    df["FINAL_CLAIM_RANK"] = df.get("carrier_risk_rank")
+                elif type_name == "inpatient":
+                    df["CLAIM_ID"] = df.get("clm_id")
+                    df["PROVIDER_ID"] = df.get("provider_id")
+                    df["PROVIDER_ID_TYPE"] = "PRVDR_NUM"
+                    df["CLAIM_TYPE"] = "INPATIENT"
+                    df["CLAIM_RISK_SCORE"] = df.get("ensemble_risk_score")
+                    df["FINAL_RISK_LEVEL"] = df.get("risk_band")
+                    df["FINAL_RISK_PRIORITY"] = df.get("risk_rank")
+                    df["FINAL_CLAIM_RANK"] = df.get("risk_rank")
+                else:
+                    df["CLAIM_ID"] = df.get("CLM_ID")
+                    df["PROVIDER_ID"] = df.get("provider_id")
+                    df["PROVIDER_ID_TYPE"] = "PRVDR_NUM"
+                    df["CLAIM_TYPE"] = "OUTPATIENT"
+                    df["CLAIM_RISK_SCORE"] = df.get("outpatient_ensemble_score")
+                    df["FINAL_RISK_LEVEL"] = df.get("outpatient_risk_band")
+                    df["FINAL_RISK_PRIORITY"] = df.get("outpatient_risk_rank")
+                    df["FINAL_CLAIM_RANK"] = df.get("outpatient_risk_rank")
+
+                df["CLAIM_TYPE"] = df["CLAIM_TYPE"].astype(str).str.upper()
+                if "CLAIM_RISK_RANK" not in df.columns and "FINAL_CLAIM_RANK" in df.columns:
+                    df["CLAIM_RISK_RANK"] = df["FINAL_CLAIM_RANK"]
+                frames.append(df)
+            if not frames:
+                raise FileNotFoundError(f"No claim export files found under {csv_path}")
+            return pd.concat(frames, ignore_index=True)
+
+        df = pd.read_csv(csv_path, low_memory=False)
+        if "CLAIM_TYPE" in df.columns and "PROVIDER_ID" in df.columns:
+            return df.copy()
+
+        if "PROVIDER_ID_TYPE" not in df.columns:
+            df = df.copy()
+            df["PROVIDER_ID_TYPE"] = None
+
+        if "CLAIM_TYPE" not in df.columns and "CLAIM_ID" in df.columns:
+            df["CLAIM_TYPE"] = "UNKNOWN"
+        return df
 
     @staticmethod
     def _canonicalize_claim_id(value):
@@ -86,6 +143,8 @@ class ClaimStore:
         provider_id_type = self._coerce_text(row.get("PROVIDER_ID_TYPE"))
         if provider_id_type is not None:
             provider_id_type = provider_id_type.upper()
+        elif claim_type in {"CARRIER", "INPATIENT", "OUTPATIENT"}:
+            provider_id_type = "NPI" if claim_type == "CARRIER" else "PRVDR_NUM"
         bene_id = claim_id
 
         risk_score = self._to_float(row.get("CLAIM_RISK_SCORE"))
