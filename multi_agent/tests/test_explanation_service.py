@@ -68,11 +68,7 @@ def test_successful_explanation_generation():
 
     service = InvestigationExplanationService(
         api_key="test-key",
-<<<<<<< HEAD
         model="openai/gpt-oss-120b",
-=======
-        model="llama-3.3-70b-versatile",
->>>>>>> b166e40 (removed old data)
         client=FakeGroqClient(
             response_text=json.dumps({
                 "executive_summary": "Anomalies remain under review.",
@@ -95,11 +91,7 @@ def test_successful_explanation_generation():
 def test_missing_api_key_returns_unavailable():
     from multi_agent.services.explanation_service import InvestigationExplanationService
 
-<<<<<<< HEAD
     service = InvestigationExplanationService(api_key=None, model="openai/gpt-oss-120b", enabled=True)
-=======
-    service = InvestigationExplanationService(api_key=None, model="llama-3.3-70b-versatile", enabled=True)
->>>>>>> b166e40 (removed old data)
     result = make_result()
     explanation = service.generate_explanation(result)
     assert explanation.status == "unavailable"
@@ -111,11 +103,7 @@ def test_timeout_is_handled():
 
     service = InvestigationExplanationService(
         api_key="test-key",
-<<<<<<< HEAD
         model="openai/gpt-oss-120b",
-=======
-        model="llama-3.3-70b-versatile",
->>>>>>> b166e40 (removed old data)
         client=FakeGroqClient(exception=TimeoutError("timed out")),
         enabled=True,
     )
@@ -130,11 +118,7 @@ def test_api_failure_is_handled():
 
     service = InvestigationExplanationService(
         api_key="test-key",
-<<<<<<< HEAD
         model="openai/gpt-oss-120b",
-=======
-        model="llama-3.3-70b-versatile",
->>>>>>> b166e40 (removed old data)
         client=FakeGroqClient(exception=RuntimeError("upstream failure")),
         enabled=True,
     )
@@ -148,11 +132,7 @@ def test_malformed_model_response_is_safe():
 
     service = InvestigationExplanationService(
         api_key="test-key",
-<<<<<<< HEAD
         model="openai/gpt-oss-120b",
-=======
-        model="llama-3.3-70b-versatile",
->>>>>>> b166e40 (removed old data)
         client=FakeGroqClient(response_text='not-json'),
         enabled=True,
     )
@@ -166,11 +146,7 @@ def test_empty_findings_are_handled_without_fabrication():
 
     service = InvestigationExplanationService(
         api_key="test-key",
-<<<<<<< HEAD
         model="openai/gpt-oss-120b",
-=======
-        model="llama-3.3-70b-versatile",
->>>>>>> b166e40 (removed old data)
         client=FakeGroqClient(response_text=json.dumps({
             "executive_summary": "No findings found.",
             "key_findings": [],
@@ -224,11 +200,7 @@ def test_missing_peer_evidence_is_explicitly_not_fabricated():
 
     service = InvestigationExplanationService(
         api_key="test-key",
-<<<<<<< HEAD
         model="openai/gpt-oss-120b",
-=======
-        model="llama-3.3-70b-versatile",
->>>>>>> b166e40 (removed old data)
         client=FakeGroqClient(response_text=json.dumps({
             "executive_summary": "Peer median was unavailable.",
             "key_findings": [{"agent": "PeerAgent", "finding": "Peer comparison is limited by missing metrics.", "evidence": "Peer median unavailable"}],
@@ -264,11 +236,7 @@ def test_risk_preservation_after_explanation_generation():
 
     service = InvestigationExplanationService(
         api_key="test-key",
-<<<<<<< HEAD
         model="openai/gpt-oss-120b",
-=======
-        model="llama-3.3-70b-versatile",
->>>>>>> b166e40 (removed old data)
         client=FakeGroqClient(response_text=json.dumps({
             "executive_summary": "Case remains under review.",
             "key_findings": [],
@@ -303,11 +271,7 @@ def test_evidence_attribution_is_preserved():
     result = Synthesis().investigate(make_case(claim), billing, [], [])
     service = InvestigationExplanationService(
         api_key="test-key",
-<<<<<<< HEAD
         model="openai/gpt-oss-120b",
-=======
-        model="llama-3.3-70b-versatile",
->>>>>>> b166e40 (removed old data)
         client=FakeGroqClient(response_text=json.dumps({
             "executive_summary": "The claim has evidence from multiple agents.",
             "key_findings": [{"agent": "BillingAgent", "finding": "High payment-to-charge ratio.", "evidence": "payment 30000 charge 7000 ratio 4.29"}],

@@ -1,55 +1,42 @@
-# Frontend — Investigation Assistant
+# FWA Investigation Workbench
 
-React + Vite + Axios chat interface.
+Temporary React + Vite frontend shell for the healthcare claims FWA platform. It consumes the existing FastAPI contracts and keeps API calls in `src/api/client.js` so the eventual frontend can replace the presentation layer without changing backend code.
 
 ## Run
 
-Start the backend first, from the project root:
+Start the backend from the repository root:
 
-```bash
+```powershell
 uvicorn backend.main:app --reload --port 8732
 ```
 
-Then, in this folder:
+Then start the frontend:
 
-```bash
+```powershell
+cd frontend
 npm install
 npm run dev
 ```
 
-Open http://localhost:5193
+Open http://localhost:5193. Set `VITE_API_BASE_URL` when the backend is not available through the Vite proxy.
 
-`vite.config.js` proxies `/api` to `http://localhost:8732`, so no CORS setup or
-environment file is needed for local development.
+## Routes
 
-## Structure
+- `#/dashboard` loads portfolio statistics and live claim/provider investigation queues.
+- `#/claim-investigation` runs the combined claim investigation contract.
+- `#/provider-investigation` loads provider risk, evidence, peer context, LEIE data, and linked claims.
+- The floating RAG assistant is available on every route.
 
-```
-src/
-├── App.jsx                     state, send loop, layout
-├── styles.css                  all styling
-├── api/client.js               axios calls + error messages
-└── components/
-    ├── Message.jsx             one turn
-    ├── Answer.jsx              renders Markdown, colour-codes headings
-    ├── Composer.jsx            input, Enter to send
-    ├── EmptyState.jsx          starter questions
-    └── ContextSidebar.jsx      case context + risk factors
-```
+## Backend endpoints consumed
 
-## The sidebar is conditional
+- `GET /api/v1/stats/overview`
+- `GET /api/v1/claims`
+- `GET /api/v1/claims/{claim_id}`
+- `POST /api/v1/investigations/{case_id}/run`
+- `GET /api/v1/providers`
+- `GET /api/v1/providers/{npi}`
+- `GET /api/v1/reports/{case_id}`
+- `POST /api/chat`
+- `GET /api/status`
 
-`ContextSidebar` returns `null` unless the API sends a real `risk_score`. Today
-that field is `null`, so the chat runs full width and no sidebar appears.
-
-When the detection engine is connected (Phase 9), the same field populates and
-the sidebar appears automatically beside the chat — no component changes.
-
-There are no placeholder scores or sample rows anywhere in this UI. A value on
-screen is always a value the backend actually returned.
-
-## Answer headings
-
-The assistant writes answers with short `###` headings. `Answer.jsx` colours
-them by what they say — legitimate explanations, what it means, what to
-investigate next — so an investigator can scan for the part they need.
+The provider API currently exposes provider risk and evidence but does not expose provider-level SHAP or GenAI narrative fields. The provider screen labels those fields as unavailable rather than inventing values.

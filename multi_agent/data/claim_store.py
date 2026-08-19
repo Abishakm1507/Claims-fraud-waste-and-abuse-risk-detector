@@ -8,11 +8,7 @@ import pandas as pd
 from multi_agent.schemas.claim_context import ClaimContext, EvidenceBundle
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-<<<<<<< HEAD
 DEFAULT_CLAIM_CSV = PROJECT_ROOT / "models" / "claims"
-=======
-DEFAULT_CLAIM_CSV = PROJECT_ROOT / "data" / "claims" / "final_unified_claim_risk.csv"
->>>>>>> b166e40 (removed old data)
 
 
 class ClaimStore:
@@ -23,11 +19,7 @@ class ClaimStore:
         if not csv_path.exists():
             raise FileNotFoundError(f"Claim output not found: {csv_path}")
         self.csv_path = csv_path
-<<<<<<< HEAD
         self._df = self._read_claims(csv_path)
-=======
-        self._df = pd.read_csv(csv_path, low_memory=False)
->>>>>>> b166e40 (removed old data)
         self._by_claim_id: Dict[str, pd.Series] = {}
         self._by_provider: Dict[str, List[str]] = {}
         self._by_beneficiary: Dict[str, List[str]] = {}
@@ -46,9 +38,18 @@ class ClaimStore:
             self._by_beneficiary.setdefault(bene_id, []).append(claim_id)
 
     @staticmethod
-<<<<<<< HEAD
     def _read_claims(csv_path: Path) -> pd.DataFrame:
         if csv_path.is_dir():
+            unified_path = csv_path / "final_unified_claim_risk.csv"
+            if unified_path.exists():
+                unified = pd.read_csv(unified_path, low_memory=False).copy()
+                if {"CLAIM_ID", "CLAIM_TYPE", "PROVIDER_ID"}.issubset(unified.columns):
+                    if "PROVIDER_ID_TYPE" not in unified.columns:
+                        unified["PROVIDER_ID_TYPE"] = unified["CLAIM_TYPE"].map(
+                            lambda value: "NPI" if str(value).upper() == "CARRIER" else "PRVDR_NUM"
+                        )
+                    return unified
+
             frames = []
             for type_name in ("carrier", "inpatient", "outpatient"):
                 path = csv_path / type_name / f"{type_name}_final_risk_scores.csv"
@@ -104,8 +105,6 @@ class ClaimStore:
         return df
 
     @staticmethod
-=======
->>>>>>> b166e40 (removed old data)
     def _canonicalize_claim_id(value):
         text = ClaimStore._coerce_text(value)
         if text is None:
@@ -154,14 +153,19 @@ class ClaimStore:
         provider_id_type = self._coerce_text(row.get("PROVIDER_ID_TYPE"))
         if provider_id_type is not None:
             provider_id_type = provider_id_type.upper()
-<<<<<<< HEAD
         elif claim_type in {"CARRIER", "INPATIENT", "OUTPATIENT"}:
             provider_id_type = "NPI" if claim_type == "CARRIER" else "PRVDR_NUM"
-=======
->>>>>>> b166e40 (removed old data)
         bene_id = claim_id
 
         risk_score = self._to_float(row.get("CLAIM_RISK_SCORE"))
+        # The unified export contains a conflicting 0-100 CLAIM_RISK_SCORE for
+        # some outpatient rows. MODEL_SCORE is the persisted outpatient
+        # ensemble output (0-1), so use it as the model-risk source when it is
+        # present rather than allowing the merged export to override it.
+        if claim_type == "OUTPATIENT":
+            model_score = self._to_float(row.get("MODEL_SCORE"))
+            if model_score is not None and 0.0 <= model_score <= 1.0:
+                risk_score = model_score * 100.0
         final_level = self._coerce_text(row.get("FINAL_RISK_LEVEL"))
         final_priority = self._to_int(row.get("FINAL_RISK_PRIORITY"))
         final_rank = self._to_int(row.get("FINAL_CLAIM_RANK"))
@@ -273,9 +277,26 @@ class ClaimStore:
                     "model_score": self._to_float(row.get("MODEL_SCORE")),
                     "claim_risk_score": risk_score,
                     "risk_rank": self._to_int(row.get("CLAIM_RISK_RANK")),
-                    "risk_band": self._coerce_text(row.get("risk_band")),
+                    "risk_band": self._coerce_text(row.get("FINAL_RISK_LEVEL")) or self._coerce_text(row.get("risk_band")),
+                    "model_consensus": self._coerce_text(row.get("model_consensus")),
+                    "model_consensus_count": self._to_int(row.get("model_consensus_count")),
+                    "isolation_forest_flag": row.get("isolation_forest_flag"),
+                    "lof_flag": row.get("lof_flag"),
+                    "one_class_svm_flag": row.get("one_class_svm_flag"),
                 },
             )
+
+        feature_columns = {
+            key: self._to_float(value) if isinstance(value, (int, float)) else value
+            for key, value in row.items()
+            if key not in {
+                "CLAIM_ID", "CLAIM_TYPE", "PROVIDER_ID", "PROVIDER_ID_TYPE",
+                "CLAIM_RISK_SCORE", "FINAL_RISK_LEVEL", "FINAL_RISK_PRIORITY",
+                "FINAL_CLAIM_RANK", "CLAIM_STATUS",
+            }
+            and value is not None
+            and not pd.isna(value)
+        }
 
         return ClaimContext(
             claim_id=claim_id,
@@ -295,6 +316,7 @@ class ClaimStore:
             peer_evidence=peer,
             rule_evidence=rule,
             model_evidence=model,
+            claim_features=feature_columns,
             data_availability=data_availability,
         )
 

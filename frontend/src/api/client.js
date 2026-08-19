@@ -10,7 +10,60 @@ const client = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
-/** Ask the assistant a question. Returns the full response contract. */
+const api = axios.create({
+  baseURL,
+  timeout: 120000,
+  headers: { "Content-Type": "application/json" },
+});
+
+export async function getOverview() {
+  const { data } = await api.get("/api/v1/stats/overview");
+  return data;
+}
+
+export async function getClaims(params = {}) {
+  const { data } = await api.get("/api/v1/claims", { params });
+  return data;
+}
+
+export async function getProviders(params = {}) {
+  const { data } = await api.get("/api/v1/providers", { params });
+  return data;
+}
+
+export async function getClaim(claimId) {
+  const { data } = await api.get(`/api/v1/claims/${encodeURIComponent(claimId)}`);
+  return data;
+}
+
+export async function runClaimInvestigation(claimId) {
+  const { data } = await api.post(`/api/v1/investigations/${encodeURIComponent(claimId)}/run`);
+  return data;
+}
+
+export async function getProvider(npi) {
+  const { data } = await api.get(`/api/v1/providers/${encodeURIComponent(npi)}`);
+  return data;
+}
+
+export async function getReport(caseId) {
+  const { data } = await api.get(`/api/v1/reports/${encodeURIComponent(caseId)}`);
+  return data;
+}
+
+export async function downloadReport(caseId) {
+  const report = await getReport(caseId);
+  const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = report.download?.filename || `report-${caseId}.json`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+  return report;
+}
+
+/** Ask the real RAG assistant. Returns the complete response contract. */
 export async function askQuestion(question, topK = 5) {
   const { data } = await client.post("/api/chat", {
     question,
