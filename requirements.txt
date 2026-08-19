@@ -1,38 +1,51 @@
-# =====================================================================
-# Healthcare Claims FWA - AI Investigation Assistant
-# PHASES 1-10 dependencies active.
-# Later phases are listed but commented out so the environment stays
-# minimal until each phase is actually built.
-# =====================================================================
+# ---------- Configuration ----------
+python-dotenv>=1.0.1
+pyyaml>=6.0.2
 
-# ---------- Phase 1: project setup ----------
-python-dotenv==1.0.1
-pyyaml==6.0.2
-
-# ---------- Phase 2: ingestion / chunking / embeddings ----------
-sentence-transformers>=3.0.0
+# ---------- Data Processing ----------
+pandas>=2.0.0
+numpy>=1.26.0
+openpyxl>=3.1.0
+requests>=2.31.0
 tqdm>=4.66.0
 
-# ---------- Phase 3: vector store ----------
+# ---------- Machine Learning ----------
+scikit-learn>=1.3.0
+joblib>=1.3.0
+
+# ---------- Explainability ----------
+shap>=0.44.0
+
+# ---------- Embeddings / RAG ----------
+sentence-transformers>=3.0.0
 faiss-cpu>=1.8.0
-numpy>=1.26.0
+rank-bm25>=0.2.2
 
-# ---------- Phase 4: LLM layer ----------
+# ---------- Structured Data ----------
+duckdb>=1.0.0
+
+# ---------- LLM ----------
 openai>=1.40.0
+groq>=0.4.0
 
-# ---------- Phase 5: backend API ----------
+# ---------- Backend API ----------
 fastapi>=0.111.0
 uvicorn[standard]>=0.30.0
 pydantic>=2.7.0
 
-# ---------- Phase 8: structured data layer ----------
-# DuckDB chosen after inspecting the datasets: ~950k rows needing rankings,
-# aggregations and joins, in a single portable file with no server.
-duckdb>=1.0.0
+# ---------- Testing ----------
+pytest>=7.4.0
+pytest-cov>=4.1.0
 
-# ---------- Phase 10: hybrid retrieval ----------
-rank-bm25>=0.2.2
+# ---------- Optional Development ----------
+# mypy>=1.4.0
+# types-requests
 
-# ---------- Phase 11: testing ----------
-# pytest==8.2.2
-# httpx==0.27.0
+fastapi==0.115.0
+uvicorn==0.30.6
+pandas==2.2.3
+numpy==2.1.2
+pydantic==2.9.2
+pydantic-settings==2.4.0
+pytest==8.3.3
+fastparquet==2024.11.0

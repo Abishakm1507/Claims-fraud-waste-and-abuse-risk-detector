@@ -1,22 +1,16 @@
 from __future__ import annotations
 
-<<<<<<< HEAD
 import json
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-=======
->>>>>>> b166e40 (removed old data)
 from typing import Any, Dict, Optional
 
 from multi_agent.agents.billing_agent import BillingAgent
 from multi_agent.agents.clinical_rule_agent import ClinicalRuleAgent
 from multi_agent.agents.peer_agent import PeerAgent
-<<<<<<< HEAD
 from multi_agent.config.agent_llm_config import DEFAULT_AGENT_LLM_CONFIG
 from multi_agent.utils.redaction import redact_for_llm
-=======
->>>>>>> b166e40 (removed old data)
 from multi_agent.data.claim_store import ClaimStore
 from multi_agent.data.provider_store import ProviderStore
 from multi_agent.models.schemas import InvestigationCase as ContractInvestigationCase
@@ -24,16 +18,11 @@ from multi_agent.schemas.claim_context import ClaimContext
 from multi_agent.schemas.investigation_case import InvestigationCase
 from multi_agent.schemas.provider_context import ProviderContext
 from multi_agent.services.explanation_service import InvestigationExplanationService
-<<<<<<< HEAD
 from multi_agent.services.llm_agent_service import LLMAgentService
 from multi_agent.synthesis import InvestigationResult, Synthesis
 
 logger = logging.getLogger(__name__)
 
-=======
-from multi_agent.synthesis import InvestigationResult, Synthesis
-
->>>>>>> b166e40 (removed old data)
 
 class Orchestrator:
     """Thin, deterministic coordinator for the multi-agent fraud investigation layer."""
@@ -49,13 +38,9 @@ class Orchestrator:
         clinical_rule_agent: Optional[ClinicalRuleAgent] = None,
         synthesis: Optional[Synthesis] = None,
         explanation_service: Optional[InvestigationExplanationService] = None,
-<<<<<<< HEAD
         llm_agent_service: Optional[LLMAgentService] = None,
         enable_genai_explanation: Optional[bool] = None,
         enable_llm_agent_reasoning: Optional[bool] = None,
-=======
-        enable_genai_explanation: Optional[bool] = None,
->>>>>>> b166e40 (removed old data)
     ):
         self.claim_store = claim_store or ClaimStore()
         self.provider_store = provider_store or ProviderStore()
@@ -64,18 +49,12 @@ class Orchestrator:
         self.clinical_rule_agent = clinical_rule_agent or ClinicalRuleAgent()
         self.synthesis = synthesis or Synthesis()
         self.enable_genai_explanation = enable_genai_explanation if enable_genai_explanation is not None else True
-<<<<<<< HEAD
         self.enable_llm_agent_reasoning = enable_llm_agent_reasoning if enable_llm_agent_reasoning is not None else True
         self.explanation_service = explanation_service or InvestigationExplanationService(enabled=self.enable_genai_explanation)
         self.llm_agent_service = llm_agent_service or LLMAgentService(enabled=self.enable_llm_agent_reasoning)
 
     def investigate(self, case: InvestigationCase) -> InvestigationResult:
         wall_start = time.time()
-=======
-        self.explanation_service = explanation_service or InvestigationExplanationService(enabled=self.enable_genai_explanation)
-
-    def investigate(self, case: InvestigationCase) -> InvestigationResult:
->>>>>>> b166e40 (removed old data)
         if case is None:
             return self._error_result("UNKNOWN", "UNKNOWN", "No investigation case provided.")
 
@@ -92,7 +71,6 @@ class Orchestrator:
         peer_findings = []
         clinical_findings = []
         agent_errors: Dict[str, str] = {}
-<<<<<<< HEAD
         agent_narratives: Dict[str, str] = {}
         tools_by_agent: Dict[str, list] = {}
 
@@ -137,32 +115,6 @@ class Orchestrator:
                         routing[agent_name]["status"] = "FAILED"
                         agent_errors[agent_name] = str(exc)
                         routing[agent_name]["error"] = str(exc)
-=======
-
-        for agent_name in self.AGENT_ORDER:
-            route = routing[agent_name]
-            if not route["selected"]:
-                route["status"] = "NOT_SELECTED"
-                continue
-
-            route["status"] = "RUNNING"
-            try:
-                if agent_name == "billing":
-                    findings = self.billing_agent.investigate(case)
-                    billing_findings = findings
-                elif agent_name == "peer":
-                    findings = self.peer_agent.investigate(case)
-                    peer_findings = findings
-                else:
-                    findings = self.clinical_rule_agent.investigate(case)
-                    clinical_findings = findings
-
-                route["status"] = "SUCCESS" if findings else "EMPTY"
-            except Exception as exc:  # pragma: no cover - defensive isolation
-                route["status"] = "FAILED"
-                agent_errors[agent_name] = str(exc)
-                route["error"] = str(exc)
->>>>>>> b166e40 (removed old data)
 
         result = self.synthesis.investigate(
             case=case,
@@ -170,11 +122,8 @@ class Orchestrator:
             peer_findings=peer_findings,
             clinical_rule_findings=clinical_findings,
             agent_errors=agent_errors,
-<<<<<<< HEAD
             agent_narratives=agent_narratives,
             tools_by_agent=tools_by_agent,
-=======
->>>>>>> b166e40 (removed old data)
         )
         result.routing = routing
         result.summary["routing"] = routing
@@ -182,8 +131,19 @@ class Orchestrator:
         result.summary["selected_agents"] = [name for name, route in routing.items() if route["selected"]]
         result.summary["skipped_agents"] = [name for name, route in routing.items() if not route["selected"]]
         result.summary["failed_agents"] = [name for name, route in routing.items() if route["status"] == "FAILED"]
-<<<<<<< HEAD
         result.summary["latency_seconds"] = 0.0
+        result.summary["claim_features"] = (
+            dict(getattr(case.claim, "claim_features", {}) or {})
+            if case.claim is not None else {}
+        )
+        result.summary["provider_features"] = (
+            case.provider.to_dict() if case.provider is not None else {}
+        )
+        result.summary["peer_features"] = (
+            dict(getattr(case.claim, "peer_evidence", None).values or {})
+            if case.claim is not None and getattr(case.claim, "peer_evidence", None) and getattr(case.claim.peer_evidence, "available", False)
+            else {}
+        )
 
         result.diagnostic_timing = {
             "orchestrator_total_seconds": float(time.time() - wall_start),
@@ -193,8 +153,6 @@ class Orchestrator:
             getattr(result, "case_id", "UNKNOWN"),
             result.diagnostic_timing["orchestrator_total_seconds"],
         )
-=======
->>>>>>> b166e40 (removed old data)
 
         if self.enable_genai_explanation:
             try:
@@ -213,7 +171,6 @@ class Orchestrator:
 
         return result
 
-<<<<<<< HEAD
     def _run_agent(self, agent_name: str, case: InvestigationCase, routing: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
         """Execute a single agent and return its findings, narrative, and tools.
         
@@ -281,12 +238,29 @@ class Orchestrator:
         return {"findings": []}  # pragma: no cover - unreachable
 
 
-=======
->>>>>>> b166e40 (removed old data)
     def to_investigation_case(self, result: InvestigationResult) -> ContractInvestigationCase:
         """Adapt the deterministic investigation result to the typed InvestigationCase v1 contract."""
-        case = ContractInvestigationCase.from_result(result, case_id=result.case_id)
-        case.agent_results = []
+        explanation = None
+        raw_explanation = (getattr(result, "summary", {}) or {}).get("genai_explanation")
+        if isinstance(raw_explanation, dict):
+            from multi_agent.models.schemas import GenAIExplanation
+
+            explanation = GenAIExplanation(
+                explanation_id=f"GEX-{result.case_id}",
+                case_id=result.case_id,
+                model_name=str(raw_explanation.get("model") or raw_explanation.get("model_name") or self.explanation_service.model),
+                summary=str(raw_explanation.get("summary") or raw_explanation.get("executive_summary") or ""),
+                risk_interpretation=raw_explanation.get("risk_interpretation") or {},
+                key_findings=raw_explanation.get("key_findings") or raw_explanation.get("key_reasons") or [],
+                evidence_references=raw_explanation.get("evidence_references") or raw_explanation.get("supporting_evidence") or [],
+                investigation_narrative=raw_explanation.get("investigation_narrative"),
+                limitations=raw_explanation.get("limitations") or [],
+                recommended_review_actions=raw_explanation.get("recommended_review_actions") or ([raw_explanation["recommended_action"]] if raw_explanation.get("recommended_action") else []),
+                model_metadata={"generated_by": raw_explanation.get("generated_by"), "error": raw_explanation.get("error")},
+                source_case_id=result.case_id,
+                status=str(raw_explanation.get("status") or "unavailable"),
+            )
+        case = ContractInvestigationCase.from_result(result, case_id=result.case_id, explanation=explanation)
         case.agent_executions = []
         case.provenance = {
             "source": "deterministic_case",
@@ -337,7 +311,6 @@ class Orchestrator:
             "clinical_rule": {"selected": False, "status": "NOT_SELECTED", "reason": ""},
         }
 
-<<<<<<< HEAD
         llm_plan = self._llm_plan(case)
         if llm_plan and isinstance(llm_plan, dict):
             for name, route in llm_plan.items():
@@ -351,8 +324,6 @@ class Orchestrator:
         if case is None:
             return routing
 
-=======
->>>>>>> b166e40 (removed old data)
         if case is None:
             return routing
 
@@ -393,7 +364,6 @@ class Orchestrator:
         routing["clinical_rule"] = {"selected": claim.claim_type not in {None, "CARRIER"}, "status": "NOT_SELECTED", "reason": "Clinical/rule review is supported for non-carrier claim types when evidence is present." if claim.claim_type not in {None, "CARRIER"} else "Carrier claims do not have a supported clinical-only rule layer."}
         return routing
 
-<<<<<<< HEAD
     def _llm_plan(self, case: InvestigationCase) -> Dict[str, Dict[str, Any]]:
         if not self.explanation_service.enabled:
             return {}
@@ -418,8 +388,6 @@ class Orchestrator:
         except Exception:
             return {}
 
-=======
->>>>>>> b166e40 (removed old data)
     def _error_result(self, case_id: str, claim_id: Optional[str], message: str) -> InvestigationResult:
         result = InvestigationResult(
             case_id=case_id,

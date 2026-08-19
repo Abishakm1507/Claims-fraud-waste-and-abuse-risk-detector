@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-<<<<<<< HEAD
 from dataclasses import dataclass
 from math import isnan
 from typing import Any, Dict, List, Optional
@@ -21,19 +20,11 @@ class BillingAgentResult:
     narrative: str
     tools_called: List[str]
     status: str
-=======
-from math import isnan
-from typing import Any, Dict, List, Optional
-
-from multi_agent.schemas.finding import Finding
-from multi_agent.schemas.investigation_case import InvestigationCase
->>>>>>> b166e40 (removed old data)
 
 
 class BillingAgent:
     """Deterministic billing-focused rule engine over ClaimContext data."""
 
-<<<<<<< HEAD
     def __init__(
         self,
         llm_service: Optional[InvestigationExplanationService] = None,
@@ -280,8 +271,6 @@ class BillingAgent:
 
         return findings
 
-=======
->>>>>>> b166e40 (removed old data)
     def investigate(self, case: InvestigationCase) -> List[Finding]:
         if case is None or case.claim is None:
             return []
@@ -311,11 +300,7 @@ class BillingAgent:
                 )
 
         if claim.claim_type not in {"CARRIER", "OUTPATIENT", "INPATIENT"} and not financial_values and not utilization_values:
-<<<<<<< HEAD
             return self._complete_with_llm(case, findings)
-=======
-            return findings
->>>>>>> b166e40 (removed old data)
 
         payment = self._float(
             financial_values.get("total_claim_payment")
@@ -409,7 +394,6 @@ class BillingAgent:
                 )
             )
 
-<<<<<<< HEAD
         return self._complete_with_llm(case, findings)
 
     def _complete_with_llm(self, case: InvestigationCase, findings: List[Finding]) -> List[Finding]:
@@ -433,10 +417,6 @@ class BillingAgent:
         reasoning = self.llm_service.generate_structured_reasoning("billing", context, fallback=fallback)
         return str(reasoning.get("narrative") or fallback)
 
-=======
-        return findings
-
->>>>>>> b166e40 (removed old data)
     @staticmethod
     def _values(bundle: Optional[Any]) -> Dict[str, Any]:
         if bundle is None:

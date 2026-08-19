@@ -10,10 +10,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from multi_agent.synthesis import InvestigationResult
-<<<<<<< HEAD
 from multi_agent.utils.redaction import redact_for_llm
-=======
->>>>>>> b166e40 (removed old data)
 
 try:
     from groq import Groq
@@ -60,11 +57,7 @@ class InvestigationExplanation:
 class InvestigationExplanationService:
     """Explanation layer that summarizes deterministic evidence without changing risk outputs."""
 
-<<<<<<< HEAD
     DEFAULT_MODEL = "openai/gpt-oss-120b"
-=======
-    DEFAULT_MODEL = "llama-3.3-70b-versatile"
->>>>>>> b166e40 (removed old data)
 
     def __init__(
         self,
@@ -79,7 +72,7 @@ class InvestigationExplanationService:
         self._load_dotenv()
         config_key = self._config_api_key()
         self.api_key = config_key if api_key is _MISSING else api_key
-        self.model = model or os.getenv("GROQ_MODEL") or self.DEFAULT_MODEL
+        self.model = model or os.getenv("LLM_MODEL") or os.getenv("GROQ_MODEL") or self.DEFAULT_MODEL
         self.timeout = float(os.getenv("GROQ_TIMEOUT", timeout))
         self.enabled = enabled
         self.client = client
@@ -186,7 +179,6 @@ class InvestigationExplanationService:
 
         return self._fallback_explanation(investigation_result, "GenAI service unavailable.", status="unavailable", is_validation_failure=False)
 
-<<<<<<< HEAD
     def generate_structured_reasoning(self, task_name: str, context: Dict[str, Any], fallback: Optional[str] = None) -> Dict[str, Any]:
         if not self.enabled:
             return {"narrative": fallback or "Deterministic evidence remains authoritative.", "cross_validation_summary": fallback or "Deterministic evidence remains authoritative.", "conflicts": [], "reasoning": {"task": task_name, "status": "disabled"}}
@@ -233,8 +225,6 @@ class InvestigationExplanationService:
             default=str,
         )
 
-=======
->>>>>>> b166e40 (removed old data)
     def _call_groq(self, prompt: str) -> str:
         if self.client is not None:
             started = time.time()
@@ -301,7 +291,6 @@ class InvestigationExplanationService:
     def _build_prompt(self, context: Dict[str, Any]) -> str:
         evidence_ids_list = context.get("evidence_ids", [])
         evidence_id_refs = "\n".join(f"  - {eid}" for eid in evidence_ids_list) if evidence_ids_list else "  - (no evidence IDs available)"
-<<<<<<< HEAD
 
         prompt_data = {
             "SYSTEM_INSTRUCTIONS": [
@@ -340,38 +329,6 @@ class InvestigationExplanationService:
             prompt_data["AGENT_NARRATIVES"] = context.get("agent_narratives")
 
         return json.dumps(prompt_data, sort_keys=True, default=str)
-=======
-        
-        return json.dumps(
-            {
-                "SYSTEM_INSTRUCTIONS": [
-                    "The InvestigationCase and its risk synthesis are authoritative.",
-                    "Evidence and evidence IDs are authoritative.",
-                    "Do not invent facts, peer baselines, dates, provider behavior, diagnosis codes, procedures, or payment amounts.",
-                    "If data is unavailable, say exactly that.",
-                    "Do not override deterministic risk outputs.",
-                    "Do not claim fraud unless the supplied evidence explicitly supports the conclusion.",
-                    "Return only a JSON object with summary, risk_interpretation, key_findings, evidence_references, limitations, recommended_review_actions.",
-                ],
-                "EVIDENCE_ID_REFERENCE_GUIDE": f"Use ONLY these evidence IDs when referencing findings:\n{evidence_id_refs}",
-                "INVESTIGATION_DATA": {
-                    "case_id": context.get("case_id"),
-                    "claim_id": context.get("claim_id"),
-                    "provider_id": context.get("provider_id"),
-                    "claim_type": context.get("claim_type"),
-                    "final_risk_level": context.get("final_risk_level"),
-                    "final_risk_priority": context.get("final_risk_priority"),
-                    "investigation_risk_score": context.get("investigation_risk_score"),
-                    "agent_errors": context.get("agent_errors", {}),
-                },
-                "EVIDENCE": context.get("evidence", []),
-                "KEY_FINDINGS": context.get("findings", []),
-                "USER_INVESTIGATOR_QUESTION": "Explain this case using only the supplied evidence and deterministic risk context.",
-            },
-            sort_keys=True,
-            default=str,
-        )
->>>>>>> b166e40 (removed old data)
 
     def _authoritative_context(self, investigation_result: InvestigationResult) -> Dict[str, Any]:
         evidence = []
@@ -397,12 +354,8 @@ class InvestigationExplanationService:
             if rule_name:
                 evidence_ids.append(str(rule_name))
             evidence.append(item)
-<<<<<<< HEAD
 
         context = {
-=======
-        return {
->>>>>>> b166e40 (removed old data)
             "case_id": investigation_result.case_id,
             "claim_id": investigation_result.claim_id,
             "provider_id": investigation_result.provider_id,
@@ -415,7 +368,6 @@ class InvestigationExplanationService:
             "findings": evidence,
             "evidence": evidence,
             "evidence_ids": evidence_ids,
-<<<<<<< HEAD
         }        # Redact PHI/PII before sending to LLM (HIPAA compliance)
         context = redact_for_llm(context)
         # Add synthesis context if available
@@ -429,9 +381,6 @@ class InvestigationExplanationService:
             context["agent_narratives"] = investigation_result.agent_narratives
 
         return context
-=======
-        }
->>>>>>> b166e40 (removed old data)
 
     @staticmethod
     def _system_prompt() -> str:

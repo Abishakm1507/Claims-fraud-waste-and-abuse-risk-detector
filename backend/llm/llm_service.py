@@ -25,7 +25,7 @@ from dataclasses import dataclass
 
 from backend.llm.prompts import SYSTEM_PROMPT
 
-DEFAULT_MODEL = "gpt-4o-mini"
+DEFAULT_MODEL = "openai/gpt-oss-120b"
 
 
 @dataclass
